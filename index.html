@@ -1,68 +1,2032 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RuneTasker</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              rs: {
-                dark: '#0d1117',
-                panel: '#161b22',
-                border: '#30363d',
-                gold: '#fbbf24',
-                text: '#c9d1d9',
-                red: '#ef4444',
-                green: '#22c55e',
-              }
-            },
-            fontFamily: {
-              sans: ['Verdana', 'sans-serif'],
-            }
-          },
-        },
-      }
-    </script>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
-      .font-cinzel { font-family: 'Cinzel', serif; }
-      /* Wheel Animation */
-      @keyframes spin-slow {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      .spin-wheel-fast {
-        animation: spin-slow 0.5s linear infinite;
-      }
-      .spin-wheel-stopping {
-        transition: transform 3s cubic-bezier(0.1, 0.7, 0.1, 1);
-      }
-      .rs-tooltip {
-        background-color: #3e382d;
-        border: 2px solid #5d5445;
-        box-shadow: 2px 2px 0px black;
-      }
-    </style>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#26292d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TTP">
+<meta name="description" content="Plan tabletop wargaming terrain layouts in 2D and 3D.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Tabletop Terrain Planner</title>
+<style>
+:root{--bg:#1b1d20;--panel:#26292d;--line:#383c42;--text:#e6e6e6;--muted:#9aa0a6;--accent:#f0a830;--bad:#e5484d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,"Segoe UI",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0 auto 0 0}
+button{background:#363a40;color:var(--text);border:1px solid #4a4f56;border-radius:6px;padding:6px 10px;cursor:pointer;font:inherit}
+@media (hover:hover){button:hover{background:#444950}}
+button:disabled{opacity:.4;cursor:default;background:#363a40}
+button.active{background:var(--accent);color:#111;border-color:var(--accent)}
+@media (hover:hover){button.danger:hover{background:var(--bad);border-color:var(--bad)}}
+main{display:grid;grid-template-columns:250px minmax(0,auto) minmax(0,1fr);gap:16px;padding:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:16px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs button{flex:1;padding:4px}
+#palette{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.shape-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;font-size:12px}
+.shape-btn canvas{display:block}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+#floors{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+#floors button{padding:4px 0;font-size:12px}
+#floors button small{display:block;font-size:10px;opacity:.7}
+#tallyDlg{width:min(720px,calc(100vw - 32px))}
+dialog.confirm{width:min(400px,calc(100vw - 32px))}
+header h1 .tag{font-size:11px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+.icon-btn{font-size:18px;line-height:1;padding:5px 9px}
+.size-row{display:flex;align-items:flex-end;gap:10px}
+.size-row label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);flex:1}
+.size-row input{background:#1f2225;color:var(--text);border:1px solid #4a4f56;border-radius:6px;padding:7px 8px;font:inherit;width:100%}
+.size-row span{padding-bottom:8px;color:var(--muted)}
+.hint-line{font-size:12px;color:var(--muted);margin:10px 0 0}
+.err-line{font-size:13px;color:var(--bad);margin:6px 0 10px;min-height:1em}
+button.primary{background:var(--accent);border-color:var(--accent);color:#111}
+@media (hover:hover){button.primary:hover{background:#f5bb55}}
+.confirm p{margin:8px 0 16px;color:var(--muted)}
+.confirm-actions{justify-content:flex-end}
+.danger-solid{background:var(--bad);border-color:var(--bad);color:#fff}
+@media (hover:hover){.danger-solid:hover{background:#c93c40}}
+.tally-mode{margin-top:12px;max-width:280px}
+.floor-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.floor-table th,.floor-table td{padding:5px 6px;text-align:right}
+.floor-table th:first-child,.floor-table td:first-child{text-align:left}
+.floor-table thead th{background:#1f2225;color:var(--muted);font-size:11px;font-weight:500;text-transform:uppercase}
+.floor-table th.cur{color:var(--accent)}
+.floor-table tbody tr:nth-child(even){background:#2b2e33}
+.floor-table td.z{color:#555a61}
+.floor-table td.tot,.floor-table th.tot{font-weight:600;border-left:1px solid var(--line)}
+.floor-table tfoot td{border-top:1px solid var(--line);font-weight:600}
+.floor-table .name{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.floor-table img{width:32px;height:24px}
+.scroll-x{overflow-x:auto}
+details.panel>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel>summary h2{margin:0}
+details.panel>summary::after{content:'\25BE';color:var(--muted);transition:transform .15s}
+details.panel:not([open])>summary::after{transform:rotate(-90deg)}
+details.panel[open]>summary{margin-bottom:8px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 16px}
+.stat{background:#1f2225;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stat b{display:block;font-size:24px;line-height:1.1}
+.stat span{font-size:12px;color:var(--muted)}
+.stat small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.tally-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.tally-list{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.tally-row{display:grid;grid-template-columns:40px minmax(0,1fr) 52px 40px;align-items:center;gap:8px;padding:4px 10px;font-size:13px}
+.tally-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tally-row:nth-child(even){background:#2b2e33}
+.tally-row img{width:40px;height:30px;display:block}
+.tally-row.head{background:#1f2225;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:6px 10px}
+.tally-row .n{text-align:right;font-variant-numeric:tabular-nums}
+.tally-row .tot{font-weight:600;font-size:15px}
+.tally-row.unused{opacity:.4}
+.tally-empty{padding:14px 10px;color:var(--muted);font-size:13px}
+.check{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;color:var(--muted);cursor:pointer}
+@media (max-width:620px){.stats{grid-template-columns:1fr 1fr}.tally-cols{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:360px){.tally-row{grid-template-columns:minmax(0,1fr) 44px 36px}.tally-row img,.tally-row>span:first-child:empty{display:none}}
+#board{display:block;cursor:crosshair;max-width:100%;height:auto}
+.iso-panel{display:flex;flex-direction:column;resize:both;overflow:hidden;height:min(calc(100vh - 100px),900px);min-height:280px;min-width:280px;max-width:100%}
+#iso{display:block;width:100%;flex:1;min-height:0;touch-action:none;cursor:grab;border-radius:6px}
+#iso:active{cursor:grabbing}
+.hint{font-size:12px;color:var(--muted);margin-left:auto}
+#status{min-height:20px;margin-top:8px;font-size:13px;color:var(--muted)}
+#status.err{color:var(--bad)}
+.help{font-size:12px;color:var(--muted);margin:0;padding-left:16px}
+.boardhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.boardhead strong{font-size:15px}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:0;width:min(540px,calc(100vw - 32px));max-height:calc(100vh - 48px)}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+.dlg{padding:16px}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.dlg-head h3{margin:0;font-size:16px}
+.dlg h2{margin-top:16px}
+.x{padding:2px 10px;font-size:18px;line-height:1.2}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px}
+.swatch{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:6px;font-size:12px}
+.swatch span{display:block;height:34px;border-radius:4px;border:1px solid rgba(0,0,0,.4)}
+.seg{display:flex;gap:4px}
+.seg button{flex:1}
+@media (max-width:1100px){main{grid-template-columns:250px 1fr}.right{grid-column:1/-1}}
+@media (max-width:720px){main{grid-template-columns:1fr;padding:12px}}
+.mobile-only,.ico{display:none}
+.menu{display:contents}
 
-<link rel="stylesheet" href="/index.css">
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4"
+/* Phone layout: app bar, floor strip, full-bleed board and a bottom dock. Keep in sync with PHONE_MQ in the script. */
+@media (max-width:720px), (pointer:coarse) and (max-height:500px){
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column;height:100vh;height:100dvh;-webkit-tap-highlight-color:transparent}
+  button{min-height:40px;touch-action:manipulation}
+  header{flex:none;flex-wrap:nowrap;gap:6px;position:relative;z-index:20;
+    padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) 6px max(8px,env(safe-area-inset-left))}
+  header h1{font-size:15px;white-space:nowrap}
+  header h1 .full{display:none}
+  header h1 .tag{margin-left:0;font-size:13px;padding:3px 7px}
+  #viewTabs{display:flex}
+  #viewTabs button{padding:6px 14px}
+  #menuBtn{display:inline-block;min-width:44px}
+  .menu{display:none;position:absolute;top:calc(100% + 4px);right:8px;flex-direction:column;gap:2px;min-width:210px;
+    max-height:calc(100dvh - 90px);overflow:auto;padding:6px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.55)}
+  header.menu-open .menu{display:flex}
+  .menu button{text-align:left;min-height:46px;padding:10px 12px;font-size:15px;background:transparent;border-color:transparent}
+  .menu button:active{background:#444950}
+  .menu .danger{color:#ff8a8d}
+  .menu .icon-btn{font-size:15px;line-height:1.4}
+  .menu .mobile-only{display:inline}
+  .menu hr{width:100%;border:0;border-top:1px solid var(--line);margin:4px 0}
+
+  main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0}
+  main>*,.left>*{min-width:0}
+  .left{display:contents}
+  .panel{margin:0;border-radius:0;border-left:0;border-right:0}
+  #controlsPanel{display:none}
+  #floorPanel{order:1;flex:none;padding:6px 8px;border-top:0}
+  #floorPanel h2{display:none}
+  #floors{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  #floors::-webkit-scrollbar,#palette::-webkit-scrollbar{display:none}
+  #floors button{flex:none;min-width:52px;padding:3px 8px;font-size:13px}
+
+  .center{order:2;flex:1;min-height:0;display:flex;flex-direction:column;position:relative;padding:6px 0 0;border:0;background:var(--bg)}
+  .boardhead{gap:8px;padding:0 8px 0 12px;margin-bottom:2px}
+  #selInfo{margin-right:auto;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .board-scroll{flex:1;min-height:0;display:flex;overflow:auto;touch-action:pan-x pan-y;overscroll-behavior:contain}
+  #board{margin:auto;max-width:none;flex:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .zoom{display:flex;flex:none;gap:4px}
+  .zoom button{min-width:42px;min-height:38px;padding:4px 8px;font-size:17px}
+  .zoom #zoomFit{font-size:13px}
+  #status{position:absolute;left:10px;right:10px;bottom:10px;margin:0;min-height:0;padding:8px 12px;border-radius:8px;
+    background:rgba(20,22,24,.92);color:var(--text);text-align:center;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  #status:empty{display:none}
+  #status.err{color:#fff;background:rgba(190,50,55,.95)}
+
+  .right{order:2;flex:1;min-height:0;display:flex;flex-direction:column}
+  body:not(.view-3d) .right,body.view-3d .center,body.view-3d #palettePanel{display:none}
+  .iso-panel{flex:1;width:auto!important;height:auto!important;min-width:0;min-height:0;resize:none;border:0;padding:0;background:var(--bg)}
+  .iso-panel h2,.iso-panel .hint{display:none}
+  #iso{border-radius:0}
+  .iso-panel .row{justify-content:center;margin:0;padding:8px 8px max(8px,env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+  .iso-panel .row button{min-width:52px;min-height:46px;font-size:18px}
+  .iso-panel #camReset{font-size:14px}
+
+  #palettePanel{order:3;flex:none;padding:6px 8px max(6px,env(safe-area-inset-bottom));box-shadow:0 -6px 16px rgba(0,0,0,.35);z-index:5}
+  #palettePanel .tabs{margin-bottom:6px}
+  #palettePanel .tabs button{min-height:34px}
+  #palette{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none}
+  #palette .shape-btn{flex:none;width:72px;min-height:66px;font-size:11px;scroll-snap-align:start}
+  #palettePanel .row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin-top:6px}
+  #palettePanel .row button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:50px;padding:4px 2px;font-size:11px;white-space:nowrap;overflow:hidden}
+  .ico{display:block;font-size:19px;line-height:1.1;font-weight:400}
+  .key{display:none}
+
+  dialog,dialog.confirm,#tallyDlg{width:100%;max-width:100%;max-height:88dvh;margin:auto 0 0;border-radius:16px 16px 0 0;border-bottom:0}
+  .dlg{padding:16px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .x{min-width:44px;min-height:44px}
+  .size-row input{font-size:16px;min-height:44px}
+  .swatches{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .seg button{min-height:44px}
+  .confirm-actions button{flex:1}
+  .check{min-height:44px}
+  .help li{margin-bottom:6px}
+}
+/* Phone on its side: board on the left, palette dock down the right. */
+@media (pointer:coarse) and (max-height:500px) and (orientation:landscape){
+  main{display:grid;grid-template-columns:minmax(0,1fr) 260px;grid-template-rows:auto minmax(0,1fr);padding-left:env(safe-area-inset-left)}
+  body.view-3d main{grid-template-columns:minmax(0,1fr)}
+  #floorPanel{grid-column:1;grid-row:1}
+  .center,.right{grid-column:1;grid-row:2}
+  #palettePanel{grid-column:2;grid-row:1/3;overflow-y:auto;box-shadow:none;border-left:1px solid var(--line);
+    padding-right:max(8px,env(safe-area-inset-right))}
+  #palette{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+  #palette .shape-btn{width:auto}
+  #palettePanel .row{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="full">Tabletop Terrain Planner</span> <span class="tag">TTP</span></h1>
+  <div class="seg mobile-only" id="viewTabs">
+    <button data-view="plan">Plan</button>
+    <button data-view="3d">3D</button>
+  </div>
+  <button id="undoBtn" title="Ctrl+Z">Undo</button>
+  <div class="menu" id="menu">
+    <button id="sceneBtn">Scene</button>
+    <button id="tallyBtn">Tally</button>
+    <button id="exportJson">Export JSON</button>
+    <button id="importJson">Import JSON</button>
+    <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    <button id="exportPng">Export PNG</button>
+    <button id="clearFloor" class="danger">Clear floor</button>
+    <button id="clearAll" class="danger">Clear all</button>
+    <hr class="mobile-only">
+    <button id="helpBtn" class="mobile-only">How to use</button>
+    <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">&#9881;&#xFE0E;<span class="mobile-only"> Settings</span></button>
+  </div>
+  <button id="menuBtn" class="icon-btn mobile-only" aria-label="Menu" aria-expanded="false" aria-controls="menu">&#8942;</button>
+</header>
+<main>
+  <div class="left">
+    <div class="panel" id="palettePanel">
+      <div class="tabs">
+        <button data-cat="building">Buildings</button>
+        <button data-cat="terrain">Terrain</button>
+      </div>
+      <div id="palette"></div>
+      <div class="row">
+        <button id="selBtn" class="mobile-only"><b class="ico">&#8598;&#xFE0E;</b>Select</button>
+        <button id="rotBtn" title="R"><b class="ico">&#10227;&#xFE0E;</b>Rotate<span class="key"> (R)</span></button>
+        <button id="flipBtn" title="F"><b class="ico">&#8646;&#xFE0E;</b>Flip<span class="key"> (F)</span></button>
+        <button id="railBtn" title="T"><b class="ico">&#8851;&#xFE0E;</b>Rail<span class="key">ings (T)</span></button>
+        <button id="overBtn" title="O"><b class="ico">&#10697;&#xFE0E;</b>Overwrite<span class="key"> (O)</span></button>
+        <button id="delBtn" class="mobile-only danger"><b class="ico">&#10005;&#xFE0E;</b>Delete</button>
+      </div>
+    </div>
+    <div class="panel" id="floorPanel">
+      <h2>Floor</h2>
+      <div id="floors"></div>
+    </div>
+    <details class="panel" id="controlsPanel" open>
+      <summary><h2>Controls</h2></summary>
+      <ul class="help">
+        <li>Click an empty cell to place</li>
+        <li>Click a piece to select it</li>
+        <li>R / F / T rotates, flips or toggles railings on the selected building (or the one you're placing)</li>
+        <li>O toggles overwrite: clicks replace whatever is underneath</li>
+        <li>Del or right-click deletes</li>
+        <li>Ctrl+Z undoes</li>
+        <li>1&ndash;9 and 0 jump to floors 1&ndash;10, PgUp / PgDn step</li>
+        <li>Click the highlighted palette piece again (or Esc) to put it down and just select</li>
+        <li>Esc deselects</li>
+        <li>Upper floors may overhang, but need at least one building cube underneath</li>
+      </ul>
+    </details>
+  </div>
+  <div class="center panel">
+    <div class="boardhead">
+      <strong id="floorLabel">Floor 1</strong><span id="selInfo"></span>
+      <div class="zoom mobile-only">
+        <button id="zoomOut" aria-label="Zoom out">&minus;</button>
+        <button id="zoomFit">Fit</button>
+        <button id="zoomIn" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="board-scroll" id="boardScroll"><canvas id="board"></canvas></div>
+    <div id="status" role="status"></div>
+  </div>
+  <div class="right">
+    <div class="panel iso-panel" id="isoPanel">
+      <h2>3D view</h2>
+      <canvas id="iso"></canvas>
+      <div class="row">
+        <button id="camLeft" title="Rotate left">&#10226;</button>
+        <button id="camRight" title="Rotate right">&#10227;</button>
+        <button id="camIn" title="Zoom in">+</button>
+        <button id="camOut" title="Zoom out">&minus;</button>
+        <button id="camReset">Reset</button>
+        <span class="hint">Drag to rotate, scroll to zoom, drag corner to resize</span>
+      </div>
+    </div>
+  </div>
+</main>
+<dialog id="sceneDlg">
+  <div class="dlg">
+    <div class="dlg-head"><h3>Scene</h3><button class="x" data-close title="Close">&times;</button></div>
+    <h2>Ground</h2><div class="swatches" id="opt-ground"></div>
+    <h2>Ground detail</h2><div class="seg" id="opt-detail"></div>
+    <h2>Backdrop</h2><div class="swatches" id="opt-backdrop"></div>
+    <h2>Surroundings</h2><div class="seg" id="opt-surround"></div>
+    <h2>Grid lines in 3D</h2><div class="seg" id="opt-grid"></div>
+  </div>
+</dialog>
+<dialog id="helpDlg">
+  <div class="dlg">
+    <div class="dlg-head"><h3>How to use</h3><button class="x" data-close title="Close">&times;</button></div>
+    <ul class="help">
+      <li>Pick a piece in the bar at the bottom, then tap an empty cell to place it</li>
+      <li>Tap a placed piece to select it: Rotate, Flip, Rail and Delete then act on it</li>
+      <li>With nothing selected, Rotate, Flip and Rail set up the next piece you place</li>
+      <li>Select puts down the piece you're holding, so taps only select</li>
+      <li>Overwrite: taps replace whatever is underneath</li>
+      <li>Pinch or use + / &minus; to zoom the plan, drag to scroll big boards</li>
+      <li>Switch to 3D at the top: drag to orbit, pinch to zoom, double-tap to reset</li>
+      <li>Upper floors may overhang, but need at least one building cube underneath</li>
+    </ul>
+  </div>
+</dialog>
+<dialog id="tallyDlg">
+  <div class="dlg">
+    <div class="dlg-head"><h3>Piece tally</h3><button class="x" data-close title="Close">&times;</button></div>
+    <div class="seg tally-mode" id="tallyMode">
+      <button data-mode="floor">Current floor</button>
+      <button data-mode="all">All floors</button>
+    </div>
+    <div id="tallyContent"></div>
+    <label class="check"><input type="checkbox" id="tallyUnused"> Show unused pieces</label>
+  </div>
+</dialog>
+<dialog id="settingsDlg" class="confirm">
+  <div class="dlg">
+    <div class="dlg-head"><h3>Settings</h3><button class="x" data-close title="Close">&times;</button></div>
+    <h2>Board size (cells)</h2>
+    <div class="size-row">
+      <label>Width<input type="number" id="sizeW" min="4" max="30"></label>
+      <span>&times;</span>
+      <label>Height<input type="number" id="sizeH" min="4" max="30"></label>
+    </div>
+    <div class="row" id="sizePresets"></div>
+    <p class="hint-line">4 to 30 cells each way. Shrinking is blocked while pieces sit outside the new size.</p>
+    <p id="sizeErr" class="err-line"></p>
+    <div class="row confirm-actions">
+      <button data-close>Cancel</button>
+      <button id="sizeApply" class="primary">Apply</button>
+    </div>
+  </div>
+</dialog>
+<dialog id="confirmDlg" class="confirm">
+  <div class="dlg">
+    <div class="dlg-head"><h3 id="confirmTitle"></h3></div>
+    <p id="confirmMsg"></p>
+    <div class="row confirm-actions">
+      <button id="confirmCancel" data-close>Cancel</button>
+      <button id="confirmOk" class="danger-solid"></button>
+    </div>
+  </div>
+</dialog>
+<script>
+// Storage key kept from the app's original name so existing saved layouts still load.
+const FLOORS = 10, STORE = 'containerLayoutPlanner.v1', HISTORY_MAX = 200;
+const MIN_SIZE = 4, MAX_SIZE = 30, PAD = 24;
+// Board size in cells (columns x rows); set from state.board. CELL is the 2D cell size in px, fitted to the board.
+let NX = 10, NY = 10, CELL = 48;
+// Phone layout switch; must match the phone @media rule in the stylesheet.
+const PHONE_MQ = matchMedia('(max-width:720px), (pointer:coarse) and (max-height:500px)');
+let boardZoom = 1; // phone only: pinch / +- zoom on top of the fitted cell size
+function fitCell() {
+  if (!PHONE_MQ.matches) { CELL = Math.max(18, Math.min(48, Math.floor(560 / Math.max(NX, NY)))); return; }
+  // Fit the board to the space between the floor strip and the dock, keeping cells big enough to tap.
+  // offset* includes any scrollbar, so the fit doesn't flip-flop as scrollbars come and go.
+  const el = document.getElementById('boardScroll');
+  const w = el.offsetWidth || window.innerWidth, h = el.offsetHeight || window.innerHeight / 2;
+  const fit = Math.floor(Math.min((w - PAD - 12) / NX, (h - PAD - 12) / NY));
+  CELL = Math.max(12, Math.min(96, Math.round(Math.max(fit, 24) * boardZoom)));
+}
+const C = {
+  roof: '#45494e', slat: '#373a3e',
+  wallA: '#35383c', wallB: '#2b2e31', edge: '#141618', window: '#9aa0a6', rail: '#a3a8ad',
+  trunk: '#5b4128', pine: '#2f5a34', leaf: '#4d7a3a', bush: '#557f3e', rock: '#7d7f80',
+  crate: '#9a7747', crateFrame: '#6b4e2c', crateEdge: '#4f3a1f', concrete: '#a19f98', sand: '#b39c6c',
+  wall: '#8d8779',
+};
+// Terrain layouts in cell-local units (centre = 0,0), shared by the 2D icons and 3D models.
+const CRATES = [[-.15, -.13, 0, .44, .1], [.24, .25, 0, .32, -.3], [-.15, -.13, .451, .3, .6]]; // u, v, h, size, yaw
+const BARRELS = [[-.2, -.18, '#5d6b4a'], [.17, -.16, '#8c3b2a']], BARREL_LYING = [.22, '#3c5d7c'], BR = .145, BH = .44;
+const SANDBAG_LAYERS = [[.28, 0], [.26, .1], [.24, .2], [.22, .3]]; // width, height
+// Bags in a layer as [u, v, length, runs along v]. Straight walls span the cell; corners interlock like brickwork.
+const sandbagRow = li => (li % 2 ? [[0, .48], [-.385, .23], [.385, .23]] : [[-.25, .48], [.25, .48]]).map(([u, len]) => [u, 0, len, false]);
+const sandbagCornerRow = li => li % 2
+  ? [[0, .02, .31, true], [0, .34, .31, true], [.32, 0, .34, false]]
+  : [[.02, 0, .31, false], [.34, 0, .31, false], [0, .32, .34, true]];
+// Barricade centre lines (cell-local u, v). They stop just short of the cell edge, leaving a thin joint line.
+const BARRICADE_PATHS = {barricade: [[-.495, 0], [.495, 0]], barricadeCorner: [[.495, 0], [0, 0], [0, .495]]};
+const SHAPES = {
+  single:    {kind: 'building', name: 'Single',    cells: [[0,0]]},
+  line2:     {kind: 'building', name: 'Line 2',    cells: [[0,0],[1,0]]},
+  line3:     {kind: 'building', name: 'Line 3',    cells: [[0,0],[1,0],[2,0]]},
+  line4:     {kind: 'building', name: 'Line 4',    cells: [[0,0],[1,0],[2,0],[3,0]]},
+  l3:        {kind: 'building', name: 'L 3',       cells: [[0,0],[0,1],[1,1]]},
+  l4:        {kind: 'building', name: 'L 4',       cells: [[0,0],[0,1],[0,2],[1,2]]},
+  square:    {kind: 'building', name: 'Square',    cells: [[0,0],[1,0],[0,1],[1,1]]},
+  t4:        {kind: 'building', name: 'T 4',       cells: [[0,0],[1,0],[2,0],[1,1]]},
+  s4:        {kind: 'building', name: 'S 4',       cells: [[1,0],[2,0],[0,1],[1,1]]},
+  round1:    {kind: 'building', name: 'Round',     cells: [[0,0]], round: true},
+  round2:    {kind: 'building', name: 'Round 2x2', cells: [[0,0],[1,0],[0,1],[1,1]], round: true},
+  pine:      {kind: 'terrain',  name: 'Pine',      cells: [[0,0]]},
+  tree:      {kind: 'terrain',  name: 'Tree',      cells: [[0,0]]},
+  bush:      {kind: 'terrain',  name: 'Bush',      cells: [[0,0]]},
+  rock:      {kind: 'terrain',  name: 'Rock',      cells: [[0,0]]},
+  rocks:     {kind: 'terrain',  name: 'Rocks',     cells: [[0,0],[1,0]]},
+  crates:    {kind: 'terrain',  name: 'Crates',    cells: [[0,0]]},
+  barrels:   {kind: 'terrain',  name: 'Barrels',   cells: [[0,0]]},
+  barricade: {kind: 'terrain',  name: 'Barricade', cells: [[0,0]]},
+  barricadeCorner: {kind: 'terrain', name: 'Barricade corner', cells: [[0,0]]},
+  sandbags:  {kind: 'terrain',  name: 'Sandbags',  cells: [[0,0]]},
+  sandbagCorner: {kind: 'terrain', name: 'Sandbag corner', cells: [[0,0]]},
+  wall:      {kind: 'terrain',  name: 'Wall',      cells: [[0,0]], wall: 1},
+  halfwall:  {kind: 'terrain',  name: 'Half wall', cells: [[0,0]], wall: .5},
+};
+const isBuilding = p => SHAPES[p.shape].kind === 'building';
+
+// Scene look: ground surface, backdrop behind the 3D view, and what surrounds the board.
+const GROUNDS = {
+  dirt:     {name: 'Dirt',     base: '#8a6f52', grid: '#7a6247', accent: '#6f5a42', detail: 'pebbles', dcol: '#8f8a80'},
+  grass:    {name: 'Grass',    base: '#5c7a3c', grid: '#4e6a31', accent: '#7d8a48', detail: 'tufts',   dcol: '#6f9646'},
+  sand:     {name: 'Sand',     base: '#c9b07e', grid: '#b49b6b', accent: '#b69a68', detail: 'ripples', dcol: '#a88f5f'},
+  concrete: {name: 'Concrete', base: '#8f8e89', grid: '#7c7b76', accent: '#77756f', detail: 'cracks',  dcol: '#5a5955'},
+  asphalt:  {name: 'Asphalt',  base: '#46484b', grid: '#57595c', accent: '#36383b', detail: 'cracks',  dcol: '#26282a', lightRoof: true},
+  snow:     {name: 'Snow',     base: '#dde3e8', grid: '#c4ccd3', accent: '#c6d0d9', detail: 'pebbles', dcol: '#f5f8fa'},
+  mud:      {name: 'Mud',      base: '#5b4731', grid: '#4d3c29', accent: '#46372a', detail: 'puddles', dcol: '#56616b', lightRoof: true},
+};
+// Dark grounds get lighter roofs so buildings stand out from the surface.
+const roofCol = () => G().lightRoof ? '#7a8087' : C.roof;
+const slatCol = () => G().lightRoof ? '#666b71' : C.slat;
+const BACKDROPS = {
+  studio:   {name: 'Studio',   top: '#26292d', bottom: '#26292d', tint: [1, 1, 1]},
+  day:      {name: 'Daylight', top: '#4f8bc4', bottom: '#d3e3ee', tint: [1, 1, 1]},
+  sunset:   {name: 'Sunset',   top: '#2d2a50', bottom: '#eb9a60', tint: [1, .88, .78]},
+  night:    {name: 'Night',    top: '#060a14', bottom: '#1c2640', tint: [.55, .62, .82]},
+  overcast: {name: 'Overcast', top: '#7b838a', bottom: '#c4c9cd', tint: [.9, .93, .96]},
+  light:    {name: 'Light',    top: '#f1f2f4', bottom: '#d0d3d7', tint: [1, 1, 1]},
+};
+const SCENE_OPTS = {
+  detail: [['off', 'Off'], ['low', 'Low'], ['high', 'High']],
+  surround: [[false, 'Board only'], [true, 'Extend ground']],
+  grid: [[true, 'On'], [false, 'Off']],
+};
+const DEFAULT_SCENE = {ground: 'dirt', detail: 'low', backdrop: 'studio', surround: false, grid: true};
+function sanitizeScene(s) {
+  const o = {...DEFAULT_SCENE};
+  if (!s) return o;
+  if (GROUNDS[s.ground]) o.ground = s.ground;
+  if (BACKDROPS[s.backdrop]) o.backdrop = s.backdrop;
+  for (const k of ['detail', 'surround', 'grid']) if (SCENE_OPTS[k].some(([v]) => v === s[k])) o[k] = s[k];
+  return o;
+}
+
+let state = {pieces: [], nextId: 1, floor: 0, shape: 'single', rot: 0, flip: false, rail: true, scene: {...DEFAULT_SCENE}, board: {w: 10, h: 10}};
+const clampSize = v => Math.max(MIN_SIZE, Math.min(MAX_SIZE, Math.round(+v) || 10));
+function setBoardSize(w, h) {
+  NX = clampSize(w); NY = clampSize(h);
+  state.board = {w: NX, h: NY};
+  fitCell();
+}
+const G = () => GROUNDS[state.scene.ground];
+let selectedId = null, hover = null, overwrite = false, paletteCat = 'building';
+const history = [];
+
+function shapeCells(shape, rot, flip) {
+  let c = SHAPES[shape].cells.map(([x, y]) => [flip ? -x : x, y]);
+  for (let i = 0; i < rot; i++) c = c.map(([x, y]) => [-y, x]);
+  const mx = Math.min(...c.map(a => a[0])), my = Math.min(...c.map(a => a[1]));
+  return c.map(([x, y]) => [x - mx, y - my]);
+}
+const pieceCells = p => shapeCells(p.shape, p.rot, p.flip).map(([x, y]) => [x + p.x, y + p.y]);
+const key = (x, y) => x + ',' + y;
+const byId = id => state.pieces.find(p => p.id === id);
+
+function occupancy(list, floor, buildingsOnly) {
+  const m = new Map();
+  for (const p of list)
+    if (p.floor === floor && (!buildingsOnly || isBuilding(p)))
+      for (const [x, y] of pieceCells(p)) m.set(key(x, y), p);
+  return m;
+}
+
+function validate(list) {
+  const occ = [], bld = [];
+  for (let f = 0; f < FLOORS; f++) { occ.push(new Set()); bld.push(new Set()); }
+  for (const p of list) {
+    if (p.floor < 0 || p.floor >= FLOORS) return 'Floor out of range';
+    for (const [x, y] of pieceCells(p)) {
+      if (x < 0 || y < 0 || x >= NX || y >= NY) return 'Doesn\'t fit on the board';
+      if (occ[p.floor].has(key(x, y))) return 'Overlaps another piece';
+      occ[p.floor].add(key(x, y));
+      if (isBuilding(p)) bld[p.floor].add(key(x, y));
+    }
+  }
+  for (const p of list) {
+    if (p.floor === 0) continue;
+    if (!pieceCells(p).some(([x, y]) => bld[p.floor - 1].has(key(x, y))))
+      return `A piece on floor ${p.floor + 1} would be floating (needs at least one building cube underneath)`;
+  }
+  return null;
+}
+
+function commit(list, msg) {
+  history.push(state.pieces);
+  if (history.length > HISTORY_MAX) history.shift();
+  state.pieces = list;
+  if (selectedId !== null && !byId(selectedId)) selectedId = null;
+  save();
+  setStatus(msg || '');
+  render();
+}
+
+function tryCommit(list, msg) {
+  const err = validate(list);
+  if (err) { setStatus(err, true); return false; }
+  commit(list, msg);
+  return true;
+}
+
+function undo() {
+  if (!history.length) { setStatus('Nothing to undo'); return; }
+  state.pieces = history.pop();
+  if (selectedId !== null && !byId(selectedId)) selectedId = null;
+  save();
+  setStatus('Undone');
+  render();
+}
+
+function ghost() {
+  if (!hover || selectedId !== null || !state.shape) return null;
+  if (!overwrite && occupancy(state.pieces, state.floor).has(key(hover.x, hover.y))) return null;
+  const p = {id: -1, shape: state.shape, rot: state.rot, flip: state.flip, rail: state.rail, x: hover.x, y: hover.y, floor: state.floor};
+  const cells = new Set(pieceCells(p).map(([x, y]) => key(x, y)));
+  const removed = overwrite
+    ? state.pieces.filter(q => q.floor === p.floor && pieceCells(q).some(([x, y]) => cells.has(key(x, y))))
+    : [];
+  const list = [...state.pieces.filter(q => !removed.includes(q)), p];
+  return {piece: p, list, removed, err: validate(list)};
+}
+
+function place() {
+  const g = ghost();
+  if (!g) return;
+  const id = state.nextId;
+  const list = g.list.map(q => q === g.piece ? {...q, id} : q);
+  const name = SHAPES[g.piece.shape].name;
+  const msg = g.removed.length ? `Replaced ${g.removed.map(q => SHAPES[q.shape].name).join(', ')} with ${name}` : `Placed ${name}`;
+  if (tryCommit(list, msg)) state.nextId++;
+}
+
+function transformSelected(fn, label) {
+  const p = byId(selectedId);
+  if (!p) return;
+  const np = {...p};
+  fn(np);
+  tryCommit(state.pieces.map(q => q.id === p.id ? np : q), label);
+}
+
+function deletePiece(id) {
+  const p = byId(id);
+  if (!p) return;
+  const list = state.pieces.filter(q => q.id !== id);
+  if (validate(list)) { setStatus('Can\'t delete: something above would be left floating', true); return; }
+  tryCommit(list, `Deleted ${SHAPES[p.shape].name}`);
+}
+
+function rotate() {
+  if (selectedId !== null) transformSelected(p => p.rot = (p.rot + 1) % 4, 'Rotated');
+  else { state.rot = (state.rot + 1) % 4; save(); render(); }
+}
+function flip() {
+  if (selectedId !== null) transformSelected(p => p.flip = !p.flip, 'Flipped');
+  else { state.flip = !state.flip; save(); render(); }
+}
+function toggleRail() {
+  const sel = byId(selectedId);
+  if (sel && !isBuilding(sel)) { setStatus('Terrain has no railings'); return; }
+  if (sel) transformSelected(p => p.rail = !p.rail, sel.rail ? 'Railings off' : 'Railings on');
+  else { state.rail = !state.rail; save(); render(); }
+}
+function toggleOverwrite() {
+  overwrite = !overwrite;
+  if (overwrite) selectedId = null;
+  setStatus(overwrite ? 'Overwrite on: clicking replaces what is underneath' : 'Overwrite off');
+  render();
+}
+function setFloor(f) {
+  state.floor = Math.max(0, Math.min(FLOORS - 1, f));
+  selectedId = null;
+  save(); render();
+}
+
+let statusTimer;
+function setStatus(msg, err) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = err ? 'err' : '';
+  clearTimeout(statusTimer);
+  // On phones the status is a toast over the board, so let it go away by itself.
+  if (msg && PHONE_MQ.matches) statusTimer = setTimeout(() => setStatus(''), err ? 5000 : 3000);
+}
+
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {}
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE));
+    if (s && Array.isArray(s.pieces)) {
+      if (s.board) setBoardSize(s.board.w, s.board.h);
+      const pieces = sanitize(s.pieces, 1);
+      if (!validate(pieces)) state.pieces = pieces;
+      state.nextId = state.pieces.length + 1;
+      if (SHAPES[s.shape] || s.shape === null) state.shape = s.shape;
+      state.scene = sanitizeScene(s.scene);
+      state.rot = ((s.rot | 0) % 4 + 4) % 4;
+      state.flip = !!s.flip;
+      state.rail = s.rail !== false;
+      state.floor = Math.max(0, Math.min(FLOORS - 1, s.floor | 0));
+    }
+  } catch (e) {}
+  if (state.shape) paletteCat = SHAPES[state.shape].kind;
+}
+function sanitize(arr, startId) {
+  return arr.filter(p => p && SHAPES[p.shape]).map((p, i) => ({
+    id: startId + i, shape: p.shape, rot: ((p.rot | 0) % 4 + 4) % 4, flip: !!p.flip, rail: p.rail !== false,
+    x: p.x | 0, y: p.y | 0, floor: p.floor | 0,
+  }));
+}
+
+function rand(a, b, c) {
+  const v = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453;
+  return v - Math.floor(v);
+}
+const shade = (hex, k) => '#' + [16, 8, 0].map(b =>
+  Math.min(255, Math.round(((parseInt(hex.slice(1), 16) >> b) & 255) * k)).toString(16).padStart(2, '0')).join('');
+// Circle that a round building's footprint cells enclose, in cell units.
+function roundGeom(cells) {
+  const xs = cells.map(c => c[0]), ys = cells.map(c => c[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
+  return {cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, r: (x1 - x0) / 2 - .03};
+}
+
+// ---------- Ground surface (shared by the 2D board and 3D view) ----------
+
+const hexRgb = hex => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
+// Smooth value noise in [0, 1].
+function vnoise(x, y, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y), s = t => t * t * (3 - 2 * t), u = s(x - xi), v = s(y - yi);
+  const a = rand(xi, yi, seed), b = rand(xi + 1, yi, seed), c = rand(xi, yi + 1, seed), d = rand(xi + 1, yi + 1, seed);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const DETAIL_LEVEL = {off: 0, low: 1, high: 2};
+// Ground colour (rgb 0-1) at board position (x, z): soft patches of the accent colour when detail is on.
+function groundRGB(x, z) {
+  const g = G(), lvl = DETAIL_LEVEL[state.scene.detail], b = hexRgb(g.base);
+  if (!lvl) return b;
+  const a = hexRgb(g.accent);
+  const n = vnoise(x / 2.3, z / 2.3, 1) * .7 + vnoise(x / .6, z / .6, 2) * .3;
+  const t = Math.max(0, Math.min(1, (n - .4) * (lvl > 1 ? 2.6 : 1.6)));
+  const j = 1 + (vnoise(x * 3, z * 3, 3) - .5) * (lvl > 1 ? .1 : .05);
+  return b.map((c, i) => Math.min(1, (c + (a[i] - c) * t) * j));
+}
+// Scattered surface details (pebbles, grass tufts, cracks, sand ripples, puddles) in board units.
+let detailCache = {key: null, items: []};
+function groundDetails() {
+  const key = [state.scene.ground, state.scene.detail, NX, NY].join('|');
+  if (detailCache.key === key) return detailCache.items;
+  const g = G(), lvl = DETAIL_LEVEL[state.scene.detail], seed = Object.keys(GROUNDS).indexOf(state.scene.ground) + 11;
+  const R = (i, k) => rand(i, k, seed), items = [], clamp = (v, max) => Math.max(.02, Math.min(max - .02, v));
+  const every = {pebbles: 1, tufts: 1, cracks: 4, ripples: 2, puddles: 6}[g.detail];
+  const n = Math.round(lvl * (g.detail === 'tufts' ? 140 : 90) * NX * NY / 100);
+  for (let i = 0; i < n; i += every) {
+    const it = {x: R(i, 1) * NX, z: R(i, 2) * NY, s: R(i, 3), a: R(i, 4) * Math.PI * 2, pts: []};
+    if (g.detail === 'cracks') {
+      let h = it.a;
+      it.pts.push([it.x, it.z]);
+      for (let k = 0; k < 5; k++) {
+        h += (R(i, 10 + k) - .5) * 1.4;
+        const [px, pz] = it.pts[k], len = .1 + .12 * R(i, 20 + k);
+        it.pts.push([px + Math.cos(h) * len, pz + Math.sin(h) * len]);
+      }
+    } else if (g.detail === 'ripples') {
+      const h = .5 + (it.s - .5) * .3, len = .5 + .4 * R(i, 5);
+      for (let k = 0; k <= 8; k++) {
+        const t = k / 8 * len, w = Math.sin(k / 8 * Math.PI * 2) * .03;
+        it.pts.push([it.x + Math.cos(h) * t - Math.sin(h) * w, it.z + Math.sin(h) * t + Math.cos(h) * w]);
+      }
+    } else if (g.detail === 'puddles') {
+      const r = .12 + .2 * it.s;
+      for (let k = 0; k < 9; k++) {
+        const a = k / 9 * Math.PI * 2, rr = r * (.7 + .5 * R(i, 30 + k));
+        it.pts.push([it.x + Math.cos(a) * rr, it.z + Math.sin(a) * rr * .8]);
+      }
+    }
+    it.pts = it.pts.map(([x, z]) => [clamp(x, NX), clamp(z, NY)]);
+    items.push(it);
+  }
+  detailCache = {key, items};
+  return items;
+}
+
+// 2D ground image for the board at a given cell size, cached per scene setting.
+const groundCache = new Map();
+function groundCanvas(cell) {
+  const dpr = window.devicePixelRatio || 1, k = `${state.scene.ground}|${state.scene.detail}|${NX}x${NY}|${cell}|${dpr}`;
+  if (groundCache.has(k)) return groundCache.get(k);
+  const S = 8, W = NX * S, H = NY * S, small = document.createElement('canvas');
+  small.width = W; small.height = H;
+  const sctx = small.getContext('2d'), img = sctx.createImageData(W, H);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const c = groundRGB((i + .5) / S, (j + .5) / S);
+    img.data.set([c[0] * 255, c[1] * 255, c[2] * 255, 255], (j * W + i) * 4);
+  }
+  sctx.putImageData(img, 0, 0);
+  const cv = document.createElement('canvas'), px = Math.round(cell * dpr);
+  cv.width = NX * px; cv.height = NY * px;
+  const ctx = cv.getContext('2d'), g = G();
+  ctx.drawImage(small, 0, 0, cv.width, cv.height);
+  ctx.scale(px, px);
+  ctx.lineWidth = 1.2 / px; ctx.lineCap = 'round';
+  const path = (pts, close) => { ctx.beginPath(); pts.forEach(([x, z], i) => ctx[i ? 'lineTo' : 'moveTo'](x, z)); if (close) ctx.closePath(); };
+  for (const it of groundDetails()) {
+    switch (g.detail) {
+      case 'pebbles':
+        ctx.beginPath(); ctx.arc(it.x, it.z, .025 + .035 * it.s, 0, Math.PI * 2);
+        ctx.fillStyle = shade(g.dcol, .8 + .4 * it.s); ctx.fill();
+        break;
+      case 'tufts':
+        ctx.strokeStyle = shade(g.dcol, .8 + .4 * it.s); ctx.beginPath();
+        for (let k = 0; k < 3; k++) { const a = it.a + k * 2.1; ctx.moveTo(it.x, it.z); ctx.lineTo(it.x + Math.cos(a) * .06, it.z + Math.sin(a) * .06); }
+        ctx.stroke();
+        break;
+      case 'cracks': case 'ripples':
+        ctx.strokeStyle = g.dcol; path(it.pts); ctx.stroke();
+        break;
+      case 'puddles':
+        path(it.pts, true); ctx.fillStyle = g.dcol; ctx.fill();
+        ctx.strokeStyle = shade(g.dcol, 1.3); ctx.stroke();
+        break;
+    }
+  }
+  if (groundCache.size > 12) groundCache.clear();
+  groundCache.set(k, cv);
+  return cv;
+}
+
+// ---------- Top-down 2D board ----------
+
+function outlinePath(ctx, cells, set, ox, oy, cell) {
+  ctx.beginPath();
+  for (const [x, y] of cells) {
+    const X = ox + x * cell, Y = oy + y * cell;
+    if (!set.has(key(x, y - 1))) { ctx.moveTo(X, Y); ctx.lineTo(X + cell, Y); }
+    if (!set.has(key(x, y + 1))) { ctx.moveTo(X, Y + cell); ctx.lineTo(X + cell, Y + cell); }
+    if (!set.has(key(x - 1, y))) { ctx.moveTo(X, Y); ctx.lineTo(X, Y + cell); }
+    if (!set.has(key(x + 1, y))) { ctx.moveTo(X + cell, Y); ctx.lineTo(X + cell, Y + cell); }
   }
 }
+
+function drawBuilding(ctx, cells, set, ox, oy, cell, rail) {
+  const slats = 6, t = Math.max(1.5, cell * 0.13);
+  for (const [x, y] of cells) {
+    const X = ox + x * cell, Y = oy + y * cell;
+    ctx.fillStyle = roofCol();
+    ctx.fillRect(X, Y, cell, cell);
+    ctx.strokeStyle = slatCol();
+    ctx.lineWidth = Math.max(0.5, cell / 40);
+    ctx.beginPath();
+    for (let i = 1; i < slats; i++) { ctx.moveTo(X, Y + cell * i / slats); ctx.lineTo(X + cell, Y + cell * i / slats); }
+    ctx.stroke();
+  }
+  if (!rail) return;
+  ctx.fillStyle = C.rail;
+  for (const [x, y] of cells) {
+    const X = ox + x * cell, Y = oy + y * cell;
+    if (!set.has(key(x, y - 1))) ctx.fillRect(X, Y, cell, t);
+    if (!set.has(key(x, y + 1))) ctx.fillRect(X, Y + cell - t, cell, t);
+    if (!set.has(key(x - 1, y))) ctx.fillRect(X, Y, t, cell);
+    if (!set.has(key(x + 1, y))) ctx.fillRect(X + cell - t, Y, t, cell);
+  }
+}
+
+function drawRound(ctx, cells, ox, oy, cell, rail) {
+  const g = roundGeom(cells), X = ox + g.cx * cell, Y = oy + g.cy * cell, R = g.r * cell;
+  const t = Math.max(1.5, cell * .13);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2);
+  ctx.fillStyle = roofCol(); ctx.fill();
+  ctx.clip();
+  ctx.strokeStyle = slatCol(); ctx.lineWidth = Math.max(0.5, cell / 40);
+  ctx.beginPath();
+  for (let yy = Y - R + cell / 6; yy < Y + R; yy += cell / 6) { ctx.moveTo(X - R, yy); ctx.lineTo(X + R, yy); }
+  ctx.stroke();
+  ctx.restore();
+  if (!rail) return;
+  ctx.beginPath(); ctx.arc(X, Y, R - t / 2, 0, Math.PI * 2);
+  ctx.strokeStyle = C.rail; ctx.lineWidth = t; ctx.stroke();
+}
+
+// Wall pieces on one floor: cell key -> axis (0 runs along columns, 1 along rows).
+const wallMap = (list, floor) =>
+  new Map(list.filter(p => p.floor === floor && SHAPES[p.shape].wall).map(p => [key(p.x, p.y), p.rot % 2]));
+// Directions a wall cell extends in: its own two ends, plus a stub towards any wall that butts into it.
+function wallArms(p, x, y, walls) {
+  const ax = p.rot % 2, arms = ax ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+  if (walls) for (const [dx, dy] of ax ? [[-1, 0], [1, 0]] : [[0, -1], [0, 1]])
+    if (walls.get(key(x + dx, y + dy)) === (dx ? 0 : 1)) arms.push([dx, dy]);
+  return arms;
+}
+
+// Terrain icon for one cell, drawn in cell units around the cell centre.
+// Single-cell terrain follows the piece's rotation/flip (walls orient via wallArms instead).
+function drawTerrainCell(ctx, p, x, y, set, ox, oy, s, walls) {
+  const sh = SHAPES[p.shape];
+  ctx.save();
+  ctx.translate(ox + (x + .5) * s, oy + (y + .5) * s);
+  if (sh.cells.length === 1 && !sh.wall) { ctx.rotate(p.rot * Math.PI / 2); if (p.flip) ctx.scale(-1, 1); }
+  ctx.scale(s, s);
+  const lw = Math.max(1, s / 32) / s;
+  ctx.lineWidth = lw;
+  const circle = (px, py, r, fill, stroke) => {
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+  };
+  const rect = (x0, y0, w, h, fill, stroke, r = 0) => {
+    ctx.beginPath(); ctx.roundRect(x0, y0, w, h, r);
+    ctx.fillStyle = fill; ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+  };
+  const rock = (px, py, r, seed) => {
+    ctx.beginPath();
+    for (let i = 0; i < 7; i++) {
+      const a = i / 7 * Math.PI * 2, rr = r * (0.75 + 0.35 * rand(x, y, i + seed));
+      ctx[i ? 'lineTo' : 'moveTo'](px + Math.cos(a) * rr, py + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fillStyle = C.rock; ctx.fill();
+    ctx.strokeStyle = '#4e5051'; ctx.stroke();
+  };
+  switch (p.shape) {
+    case 'pine':
+      circle(0, 0, .4, C.pine, '#1c3620');
+      ctx.strokeStyle = '#24472a'; ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * .36, Math.sin(a) * .36); }
+      ctx.stroke();
+      circle(0, 0, .06, C.trunk);
+      break;
+    case 'tree':
+      circle(0, 0, .42, C.leaf, '#2e4a22');
+      circle(-.1, -.1, .18, '#628f4a');
+      break;
+    case 'bush':
+      circle(-.14, .08, .18, C.bush, '#344f26');
+      circle(.15, .1, .16, C.bush, '#344f26');
+      circle(0, -.12, .18, C.bush, '#344f26');
+      break;
+    case 'rock':
+      rock(0, 0, .36, 0);
+      break;
+    case 'rocks':
+      rock(0, .05, .3, 0);
+      rock(.25, -.22, .13, 9);
+      break;
+    case 'crates':
+      for (const [u, v, , w, yaw] of CRATES) {
+        ctx.save(); ctx.translate(u, v); ctx.rotate(yaw);
+        const h = w / 2, ft = w * .15;
+        rect(-h, -h, w, w, C.crateFrame, C.crateEdge);
+        rect(-h + ft, -h + ft, w - 2 * ft, w - 2 * ft, C.crate);
+        ctx.strokeStyle = C.crateEdge; ctx.beginPath();
+        for (const k of [-1, 1]) { ctx.moveTo(-h + ft, k * w / 6); ctx.lineTo(h - ft, k * w / 6); }
+        ctx.stroke();
+        ctx.restore();
+      }
+      break;
+    case 'barrels': {
+      for (const [u, v, c] of BARRELS) {
+        circle(u, v, BR * 1.05, shade(c, .7), shade(c, .45));
+        circle(u, v, BR * .88, shade(c, .9));
+        circle(u + BR * .5, v, BR * .12, shade(c, .6));
+      }
+      const [v, c] = BARREL_LYING;
+      rect(-BH / 2, v - BR, BH, 2 * BR, c, shade(c, .45), BR * .3);
+      ctx.fillStyle = shade(c, .7);
+      for (const k of [1, 2]) ctx.fillRect(-BH / 2 + BH * k / 3 - .015, v - BR, .03, 2 * BR);
+      break;
+    }
+    case 'barricade': case 'barricadeCorner': {
+      // Layered strokes along the centre line: base, hazard band, then the narrow top.
+      const pts = BARRICADE_PATHS[p.shape];
+      ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+      const stroke = (w, c, dash) => {
+        ctx.beginPath(); pts.forEach(([u, v], i) => ctx[i ? 'lineTo' : 'moveTo'](u, v));
+        ctx.lineWidth = w; ctx.strokeStyle = c; ctx.setLineDash(dash || []); ctx.stroke();
+      };
+      stroke(.4, '#5e5d59');
+      stroke(.37, shade(C.concrete, .85));
+      stroke(.2, C.concrete);
+      stroke(.2, '#d8b13a', [.06, .06]);
+      stroke(.13, shade(C.concrete, 1.08));
+      ctx.setLineDash([]);
+      break;
+    }
+    case 'sandbags': case 'sandbagCorner': {
+      const row = p.shape === 'sandbags' ? sandbagRow : sandbagCornerRow;
+      for (const li of [0, SANDBAG_LAYERS.length - 1]) {
+        const [w] = SANDBAG_LAYERS[li];
+        for (const [u, v, len, alongV] of row(li)) {
+          const l = len - .02;
+          if (alongV) rect(u - w / 2, v - l / 2, w, l, shade(C.sand, li ? 1 : .8), '#6f5e3c', w * .35);
+          else rect(u - l / 2, v - w / 2, l, w, shade(C.sand, li ? 1 : .8), '#6f5e3c', w * .35);
+        }
+      }
+      break;
+    }
+    case 'wall': case 'halfwall': {
+      const full = p.shape === 'wall', t = full ? .2 : .16, arms = wallArms(p, x, y, walls);
+      const armRect = ([dx, dy], pad) => dx
+        ? ctx.fillRect(dx > 0 ? -t / 2 - pad : -.5, -t / 2 - pad, .5 + t / 2 + pad, t + 2 * pad)
+        : ctx.fillRect(-t / 2 - pad, dy > 0 ? -t / 2 - pad : -.5, t + 2 * pad, .5 + t / 2 + pad);
+      ctx.fillStyle = '#3f3c37';
+      for (const a of arms) armRect(a, lw * 1.5);
+      ctx.fillStyle = full ? C.wall : shade(C.wall, 1.2);
+      for (const a of arms) armRect(a, 0);
+      if (!full) {
+        ctx.fillStyle = shade(C.wall, .9);
+        for (const a of arms) armRect(a, -t * .32);
+      }
+      break;
+    }
+  }
+  ctx.restore();
+}
+
+function drawPiece(ctx, p, cells, ox, oy, cell, outline, width, walls) {
+  const set = new Set(cells.map(([x, y]) => key(x, y))), s = SHAPES[p.shape];
+  if (s.kind === 'building') {
+    if (s.round) drawRound(ctx, cells, ox, oy, cell, p.rail);
+    else drawBuilding(ctx, cells, set, ox, oy, cell, p.rail);
+    outline = outline || C.edge;
+  } else {
+    for (const [x, y] of cells) drawTerrainCell(ctx, p, x, y, set, ox, oy, cell, walls);
+  }
+  if (!outline) return;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = width;
+  if (s.round) {
+    const g = roundGeom(cells);
+    ctx.beginPath(); ctx.arc(ox + g.cx * cell, oy + g.cy * cell, g.r * cell, 0, Math.PI * 2);
+  } else outlinePath(ctx, cells, set, ox, oy, cell);
+  ctx.stroke();
+}
+
+function drawTop(ctx, floor, cell, ox, oy, opts = {}) {
+  ctx.drawImage(groundCanvas(cell), ox, oy, NX * cell, NY * cell);
+  ctx.strokeStyle = G().grid;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i <= NX; i++) { ctx.moveTo(ox + i * cell + .5, oy); ctx.lineTo(ox + i * cell + .5, oy + NY * cell); }
+  for (let i = 0; i <= NY; i++) { ctx.moveTo(ox, oy + i * cell + .5); ctx.lineTo(ox + NX * cell, oy + i * cell + .5); }
+  ctx.stroke();
+  if (floor > 0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    for (const k of occupancy(state.pieces, floor - 1, true).keys()) {
+      const [x, y] = k.split(',').map(Number);
+      ctx.fillRect(ox + x * cell + 1, oy + y * cell + 1, cell - 1, cell - 1);
+    }
+  }
+  const onFloor = state.pieces.filter(p => p.floor === floor);
+  const sel = onFloor.find(p => p.id === opts.selectedId);
+  const walls = wallMap(state.pieces, floor);
+  for (const p of onFloor) if (p !== sel) drawPiece(ctx, p, pieceCells(p), ox, oy, cell, null, 2, walls);
+  if (sel) drawPiece(ctx, sel, pieceCells(sel), ox, oy, cell, '#f0a830', 4, walls);
+  if (opts.ghost) {
+    const g = opts.ghost, cells = pieceCells(g.piece);
+    ctx.globalAlpha = 0.65;
+    drawPiece(ctx, g.piece, cells, ox, oy, cell, g.err ? '#e5484d' : '#fff', 2, walls);
+    ctx.globalAlpha = 1;
+    if (g.err) {
+      ctx.fillStyle = 'rgba(229,72,77,0.45)';
+      for (const [x, y] of cells) ctx.fillRect(ox + x * cell, oy + y * cell, cell, cell);
+    }
+  }
+}
+
+function drawLabels(ctx, cell, ox, oy) {
+  ctx.fillStyle = '#9aa0a6';
+  ctx.font = `${cell < 24 ? 10 : 12}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < NX; i++) ctx.fillText(colLabel(i), ox + i * cell + cell / 2, oy - 12);
+  for (let i = 0; i < NY; i++) ctx.fillText(String(i + 1), ox - 12, oy + i * cell + cell / 2);
+}
+// Spreadsheet-style column names: A..Z, then AA, AB...
+const colLabel = i => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + i % 26);
+
+// ---------- 3D view (WebGL, depth-buffered) ----------
+
+const DEFAULT_CAM = {yaw: Math.PI / 4, pitch: 0.62, dist: 24};
+const cam = {...DEFAULT_CAM};
+const iso = document.getElementById('iso');
+let gl = null, glLoc = null, glBuf = null;
+
+const VS = `attribute vec3 p; attribute vec3 n; attribute vec4 c;
+uniform mat4 m; uniform vec3 l; uniform float lit; uniform vec3 k; varying vec4 vc;
+void main() {
+  gl_Position = m * vec4(p, 1.0);
+  float s = lit > 0.5 ? 0.5 + 0.5 * abs(dot(normalize(n), l)) : 1.0;
+  vc = vec4(c.rgb * s * k, c.a);
+}`;
+const FS = `precision mediump float; varying vec4 vc; void main() { gl_FragColor = vc; }`;
+
+function initGL() {
+  gl = iso.getContext('webgl', {alpha: false, antialias: true, preserveDrawingBuffer: true});
+  if (!gl) return;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  glLoc = {
+    p: gl.getAttribLocation(prog, 'p'), n: gl.getAttribLocation(prog, 'n'), c: gl.getAttribLocation(prog, 'c'),
+    m: gl.getUniformLocation(prog, 'm'), l: gl.getUniformLocation(prog, 'l'), lit: gl.getUniformLocation(prog, 'lit'),
+    k: gl.getUniformLocation(prog, 'k'),
+  };
+  glBuf = {p: gl.createBuffer(), n: gl.createBuffer(), c: gl.createBuffer()};
+  for (const k of ['p', 'n', 'c']) gl.enableVertexAttribArray(glLoc[k]);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.polygonOffset(1, 1);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+}
+
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const norm = a => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, a]; };
+
+function perspective(fovy, aspect, near, far) {
+  const t = 1 / Math.tan(fovy / 2);
+  return [t / aspect, 0, 0, 0, 0, t, 0, 0, 0, 0, (far + near) / (near - far), -1, 0, 0, 2 * far * near / (near - far), 0];
+}
+function lookAt(e, c, up) {
+  const z = norm(sub(e, c)), x = norm(cross(up, z)), y = cross(z, x);
+  return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, e), -dot(y, e), -dot(z, e), 1];
+}
+function mul(a, b) {
+  const o = new Array(16).fill(0);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
+  return o;
+}
+
+const mesh = () => ({p: [], n: [], c: []});
+function quad(m, a, b, c, d, col) {
+  const nn = cross(sub(b, a), sub(d, a));
+  for (const q of [a, b, c, a, c, d]) { m.p.push(...q); m.n.push(...nn); m.c.push(...col); }
+}
+function seg(m, a, b, col) {
+  m.p.push(...a, ...b); m.n.push(0, 1, 0, 0, 1, 0); m.c.push(...col, ...col);
+}
+// Models are built in a local frame; L(u, h, v) maps local coordinates to world.
+// Revolved shape around the local vertical axis; prof = [[radius, height], ...] bottom to top.
+function lathe(m, L, prof, sides, col, jit, capBottom) {
+  const pt = (i, k) => {
+    const a = i / sides * Math.PI * 2, r = prof[k][0] * (jit ? jit(i % sides) : 1);
+    return L(Math.cos(a) * r, prof[k][1], Math.sin(a) * r);
+  };
+  for (let k = 0; k < prof.length - 1; k++)
+    for (let i = 0; i < sides; i++) quad(m, pt(i, k), pt(i + 1, k), pt(i + 1, k + 1), pt(i, k + 1), col);
+  if (capBottom) {
+    const c0 = L(0, prof[0][1], 0);
+    for (let i = 0; i < sides; i++) quad(m, c0, pt(i, 0), pt(i + 1, 0), pt(i + 1, 0), col);
+  }
+}
+// Box without a bottom face.
+function cuboid(m, L, x0, y0, z0, x1, y1, z1, col) {
+  if (x0 > x1) [x0, x1] = [x1, x0];
+  if (z0 > z1) [z0, z1] = [z1, z0];
+  const v = (a, b, c) => L(a ? x1 : x0, b ? y1 : y0, c ? z1 : z0);
+  quad(m, v(0,1,0), v(1,1,0), v(1,1,1), v(0,1,1), col);
+  quad(m, v(0,0,0), v(1,0,0), v(1,1,0), v(0,1,0), col);
+  quad(m, v(0,0,1), v(1,0,1), v(1,1,1), v(0,1,1), col);
+  quad(m, v(0,0,0), v(0,0,1), v(0,1,1), v(0,1,0), col);
+  quad(m, v(1,0,0), v(1,0,1), v(1,1,1), v(1,1,0), col);
+}
+
+// Wooden crate of size s, standing on L's origin: framed edges, a diagonal brace per side, plank seams.
+function crate3d(M, L, s, A) {
+  const h = s / 2, ft = s * .13, pr = s * .025, e = h + pr, i = e - ft;
+  const body = rgba(C.crate, A), frame = rgba(C.crateFrame, A), seam = rgba(C.crateEdge, A);
+  cuboid(M.tri, L, -h, 0, -h, h, s, h, body);
+  for (const a of [-1, 1]) {
+    for (const b of [-1, 1]) cuboid(M.tri, L, a * i, 0, b * i, a * e, s + pr, b * e, frame);
+    for (const [y0, y1] of [[0, ft], [s - ft, s + pr]]) {
+      cuboid(M.tri, L, -e, y0, a * i, e, y1, a * e, frame);
+      cuboid(M.tri, L, a * i, y0, -e, a * e, y1, e, frame);
+    }
+  }
+  for (const [nu, nv] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const P = (tt, y, off) => nu ? L(nu * (h + off), y, tt) : L(tt, y, nv * (h + off));
+    const d = nu + nv, o = pr * .6;
+    quad(M.tri, P(-d * i, ft, o), P(-d * (i - ft), ft, o), P(d * i, s - ft, o), P(d * (i - ft), s - ft, o), frame);
+    for (const k of [1, 2]) seg(M.line, P(-i, s * k / 3, .003), P(i, s * k / 3, .003), seam);
+  }
+  for (const k of [-1, 1]) seg(M.line, L(-i, s + .003, k * s / 6), L(i, s + .003, k * s / 6), seam);
+}
+
+// Steel drum standing on L's origin: bulged body, two rolling hoops, recessed lid and a bung.
+function barrel3d(m, L, hex, A, capBottom) {
+  const P = pr => pr.map(([k, y]) => [k * BR, y * BH]), dark = rgba(shade(hex, .7), A);
+  lathe(m, L, P([[.93, 0], [.98, .05], [1, .3], [1.02, .5], [1, .7], [.98, .95], [.95, 1]]), 14, rgba(hex, A), null, capBottom);
+  for (const y of [.33, .67]) lathe(m, L, P([[1, y - .035], [1.07, y - .02], [1.07, y + .02], [1, y + .035]]), 14, dark);
+  lathe(m, L, P([[.95, 1], [.97, 1.03], [.88, 1.03], [.86, .99], [0, .99]]), 14, rgba(shade(hex, .85), A));
+  lathe(m, (a, h, b) => L(a + BR * .5, h, b), [[BR * .12, BH * .99], [BR * .12, BH * 1.04], [0, BH * 1.04]], 6, dark);
+}
+
+// Sandbag: a lathe squashed into a rounded-rectangle pillow of length len and width w.
+function sandbag3d(m, L, len, w, col) {
+  const S = (a, h, b) => {
+    const r = Math.hypot(a, b), k = r ? r / Math.pow(a ** 4 + b ** 4, .25) : 1;
+    return L(a * k * len / 2, h, b * k * w / 2);
+  };
+  lathe(m, S, [[.8, 0], [.96, .025], [1, .055], [.94, .085], [.6, .105], [0, .11]], 16, col);
+}
+
+// Jersey barrier extruded along a centre-line path (cell-local u, v), mitred at bends.
+// P(u, h, v) maps local to world.
+function jersey(M, P, pts, cc, col) {
+  const t = M.tri, ec = col('#6b6a65'), dk = col('#3a3936'), stripe = col('#d8b13a');
+  const prof = [[.19, 0], [.19, .05], [.1, .15], [.065, .4]], [tw, H] = prof[prof.length - 1];
+  const wAt = h => .1 - .035 * (h - .15) / .25, last = pts.length - 1;
+  const dirs = pts.slice(1).map((q, i) => { const d = [q[0] - pts[i][0], q[1] - pts[i][1]], l = Math.hypot(...d); return [d[0] / l, d[1] / l]; });
+  // Point on side s (+1/-1) at half-width w, at path vertex i (mitred between the two segments).
+  const off = (i, w, s) => {
+    const d0 = dirs[Math.max(0, i - 1)], d1 = dirs[Math.min(dirs.length - 1, i)];
+    let nx = -d0[1] - d1[1], nz = d0[0] + d1[0];
+    const l = Math.hypot(nx, nz); nx /= l; nz /= l;
+    const k = w / (nx * -d1[1] + nz * d1[0]);
+    return [pts[i][0] + s * nx * k, pts[i][1] + s * nz * k];
+  };
+  const V = ([u, v], h) => P(u, h, v);
+  const lerp = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  for (let k = 0; k < prof.length - 1; k++) {
+    const [w0, h0] = prof[k], [w1, h1] = prof[k + 1];
+    for (const s of [-1, 1]) for (let i = 0; i < last; i++) {
+      quad(t, V(off(i, w0, s), h0), V(off(i + 1, w0, s), h0), V(off(i + 1, w1, s), h1), V(off(i, w1, s), h1), cc);
+      seg(M.line, V(off(i, w1, s), h1), V(off(i + 1, w1, s), h1), ec);
+    }
+    for (const i of [0, last]) quad(t, V(off(i, w0, -1), h0), V(off(i, w0, 1), h0), V(off(i, w1, 1), h1), V(off(i, w1, -1), h1), cc);
+  }
+  for (let i = 0; i < last; i++)
+    quad(t, V(off(i, tw, -1), H), V(off(i + 1, tw, -1), H), V(off(i + 1, tw, 1), H), V(off(i, tw, 1), H), cc);
+  // Hazard stripes and drainage slots, following each face of each segment.
+  const hb0 = .25, hb1 = .33, o = .005;
+  for (const s of [-1, 1]) for (let i = 0; i < last; i++) {
+    const a0 = off(i, wAt(hb0) + o, s), b0 = off(i + 1, wAt(hb0) + o, s), a1 = off(i, wAt(hb1) + o, s), b1 = off(i + 1, wAt(hb1) + o, s);
+    const len = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]), n = Math.max(2, Math.round(len * 8));
+    for (let j = 0; j < n; j += 2) {
+      const f0 = j / n, f1 = (j + 1) / n, sl = .4 / n;
+      quad(t, V(lerp(a0, b0, f0), hb0), V(lerp(a0, b0, f1), hb0),
+        V(lerp(a1, b1, Math.min(1, f1 + sl)), hb1), V(lerp(a1, b1, Math.min(1, f0 + sl)), hb1), stripe);
+    }
+    if (len > .45) {
+      const g0 = off(i, .193, s), g1 = off(i + 1, .193, s), m0 = .5 - .14 / len, m1 = .5 + .14 / len;
+      quad(t, V(lerp(g0, g1, m0), 0), V(lerp(g0, g1, m1), 0), V(lerp(g0, g1, m1), .035), V(lerp(g0, g1, m0), .035), dk);
+    }
+  }
+}
+
+function terrainModel(M, p, x, y, set, A, walls) {
+  const col = hex => rgba(hex, A), t = M.tri, f = p.floor, sh = SHAPES[p.shape];
+  const turn = sh.cells.length === 1 && !sh.wall;
+  // Cell-local (u, v around the cell centre) to world, following the piece's flip and rotation.
+  const cell = (u, h, v) => {
+    if (turn) { if (p.flip) u = -u; for (let i = 0; i < p.rot; i++) [u, v] = [-v, u]; }
+    return [x + .5 + u, f + h, y + .5 + v];
+  };
+  const at = (u, v, h = 0, yaw = 0) => {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    return (a, hh, b) => cell(u + a * c - b * s, h + hh, v + a * s + b * c);
+  };
+  const O = at(0, 0);
+  const rock = (u, v, r, h, seed) => lathe(t, at(u, v),
+    [[r, 0], [r * 1.1, h * .35], [r * .75, h * .8], [r * .2, h], [0, h]], 7, col(C.rock), i => 0.75 + 0.5 * rand(x, y, i + seed));
+  switch (p.shape) {
+    case 'pine':
+      lathe(t, O, [[.08, 0], [.07, .25]], 6, col(C.trunk));
+      lathe(t, O, [[.4, .2], [0, .6]], 8, col(C.pine), null, true);
+      lathe(t, O, [[.32, .45], [0, .85]], 8, col('#35633a'), null, true);
+      lathe(t, O, [[.22, .7], [0, 1.1]], 8, col('#3a6b40'), null, true);
+      break;
+    case 'tree':
+      lathe(t, O, [[.08, 0], [.06, .45]], 6, col(C.trunk));
+      lathe(t, O, [[.15, .35], [.38, .5], [.42, .7], [.32, .9], [.12, 1.02], [0, 1.05]], 9, col(C.leaf), null, true);
+      break;
+    case 'bush':
+      lathe(t, O, [[.22, 0], [.34, .1], [.32, .22], [.18, .32], [0, .35]], 8, col(C.bush), i => 0.85 + 0.3 * rand(x, y, i));
+      break;
+    case 'rock':
+      rock(0, 0, .34, .4, 0);
+      break;
+    case 'rocks':
+      rock(0, .05, .3, .3, 0);
+      rock(.25, -.22, .13, .16, 9);
+      break;
+    case 'crates':
+      for (const [u, v, h, s, yaw] of CRATES) crate3d(M, at(u, v, h, yaw), s, A);
+      break;
+    case 'barrels': {
+      for (const [u, v, c] of BARRELS) barrel3d(t, at(u, v), c, A);
+      const [v, c] = BARREL_LYING, Lb = at(0, v);
+      barrel3d(t, (a, h, b) => Lb(h - BH / 2, a + BR * 1.07, b), c, A, true);
+      break;
+    }
+    case 'barricade': case 'barricadeCorner': {
+      // Jersey barrier: one block per arm, with drainage slots and hazard stripes.
+      jersey(M, cell, BARRICADE_PATHS[p.shape], col(shade(C.concrete, .92 + .16 * rand(x, y, 3))), col);
+      break;
+    }
+    case 'sandbags': case 'sandbagCorner': {
+      const row = p.shape === 'sandbags' ? sandbagRow : sandbagCornerRow;
+      SANDBAG_LAYERS.forEach(([w, h], li) => row(li).forEach(([u, v, len, alongV], bi) => {
+        const j = rand(x * 3 + li, y * 3 + bi, f + 7), jit = (j - .5) * .03;
+        const L = at(u + (alongV ? jit : 0), v + (alongV ? 0 : jit), h, (alongV ? Math.PI / 2 : 0) + (j - .5) * .1);
+        sandbag3d(t, L, len, w, col(shade(C.sand, .88 + .22 * j)));
+      }));
+      break;
+    }
+    case 'wall': case 'halfwall': {
+      // Block wall along the cell centre line; arms join up with neighbouring walls.
+      const H = sh.wall, tw = .08, cp = .1, bh = .125;
+      const wc = col(shade(C.wall, .94 + .12 * rand(x, y, 5))), cap = col(shade(C.wall, .78)), seam = col(shade(C.wall, .68));
+      const W = (u, h, v) => [x + .5 + u, f + h, y + .5 + v];
+      cuboid(t, W, -tw, 0, -tw, tw, H, tw, wc);
+      cuboid(t, W, -cp, H, -cp, cp, H + .04, cp, cap);
+      for (const [dx, dy] of wallArms(p, x, y, walls)) {
+        const B = (u, h, v) => dx ? W(u * dx, h, v) : W(v, h, u * dy);
+        cuboid(t, B, tw, 0, -tw, .5, H, tw, wc);
+        cuboid(t, B, cp, H, -cp, .5, H + .04, cp, cap);
+        for (const sv of [-1, 1]) {
+          const o = sv * (tw + .002);
+          for (let k = 0; k * bh < H - .01; k++) {
+            if (k) seg(M.line, B(tw, k * bh, o), B(.5, k * bh, o), seam);
+            for (const u of k % 2 ? [.125, .375] : [.25]) seg(M.line, B(u, k * bh, o), B(u, Math.min(H, (k + 1) * bh), o), seam);
+          }
+        }
+      }
+      break;
+    }
+  }
+}
+
+// Round building (silo/tank style) for one floor: corrugated wall, windows, roof and ring railing.
+function roundModel(M, p, A, any, stacked) {
+  const col = hex => rgba(hex, A), edge = col(C.edge), f = p.floor;
+  const g = roundGeom(pieceCells(p)), cz = g.cy, r = g.r;
+  const S = r > .6 ? 40 : 24;
+  const pt = (i, h, dr = 0) => {
+    const a = i / S * Math.PI * 2;
+    return [g.cx + Math.cos(a) * (r + dr), h, cz + Math.sin(a) * (r + dr)];
+  };
+  for (let i = 0; i < S; i++) {
+    quad(M.tri, pt(i, f), pt(i + 1, f), pt(i + 1, f + 1), pt(i, f + 1), col(i % 2 ? C.wallA : C.wallB));
+    seg(M.line, pt(i, f, .003), pt(i + 1, f, .003), edge);
+    seg(M.line, pt(i, f + 1, .003), pt(i + 1, f + 1, .003), edge);
+  }
+  const wins = r > .6 ? 5 : 2, ww = .5 / (2 * Math.PI * r / S);
+  for (let w = 0; w < wins; w++) {
+    const i0 = (w * S / wins + f * 3) % S;
+    for (let k = 0; k < 4; k++) {
+      const a = i0 + ww * k / 4, b = i0 + ww * (k + 1) / 4;
+      quad(M.tri, pt(a, f + .24, .006), pt(b, f + .24, .006), pt(b, f + .72, .006), pt(a, f + .72, .006), edge);
+      const ga = i0 + ww * (.08 + .84 * k / 4), gb = i0 + ww * (.08 + .84 * (k + 1) / 4);
+      quad(M.tri, pt(ga, f + .28, .012), pt(gb, f + .28, .012), pt(gb, f + .68, .012), pt(ga, f + .68, .012), col(C.window));
+    }
+  }
+  const c0 = [g.cx, f, cz], c1 = [g.cx, f + 1, cz];
+  if (f > 0) for (let i = 0; i < S; i++) quad(M.tri, c0, pt(i, f), pt(i + 1, f), pt(i + 1, f), col(C.wallB));
+  if (stacked) return;
+  const h = f + 1;
+  for (let i = 0; i < S; i++) quad(M.tri, c1, pt(i, h), pt(i + 1, h), pt(i + 1, h), col(roofCol()));
+  for (let zz = cz - r + 1 / 6; zz < cz + r; zz += 1 / 6) {
+    const hw = Math.sqrt(r * r - (zz - cz) ** 2);
+    seg(M.line, [g.cx - hw, h + .002, zz], [g.cx + hw, h + .002, zz], col(slatCol()));
+  }
+  if (!p.rail) return;
+  const rc = col(C.rail), H = .3, post = .035 / (2 * Math.PI * (r - .05) / S);
+  for (let i = 0; i < S; i++) {
+    const m = pt(i + .5, h, -.05);
+    if (any.has(`${Math.floor(m[0])},${Math.floor(m[2])},${f + 1}`)) continue;
+    quad(M.tri, pt(i, h + H - .05, -.05), pt(i + 1, h + H - .05, -.05), pt(i + 1, h + H, -.05), pt(i, h + H, -.05), rc);
+    quad(M.tri, pt(i + .5 - post / 2, h, -.05), pt(i + .5 + post / 2, h, -.05), pt(i + .5 + post / 2, h + H, -.05), pt(i + .5 - post / 2, h + H, -.05), rc);
+  }
+}
+
+// World axes: X = board column, Y = height, Z = board row.
+const SIDES = [
+  {dx: 0, dy: -1, a: [0, 0], b: [1, 0]},
+  {dx: 1, dy: 0, a: [1, 0], b: [1, 1]},
+  {dx: 0, dy: 1, a: [1, 1], b: [0, 1]},
+  {dx: -1, dy: 0, a: [0, 1], b: [0, 0]},
+];
+
+// Ground, surface details, grid and board edge/surroundings; cached until the scene settings change.
+let groundMeshCache = {key: null, M: null};
+function groundMesh() {
+  const sc = state.scene, key = [sc.ground, sc.detail, sc.surround, sc.grid, NX, NY].join('|');
+  if (groundMeshCache.key === key) return groundMeshCache.M;
+  // Colour samples per cell; fewer on big boards to keep the vertex count down.
+  const M = {tri: mesh(), line: mesh()}, g = G(), sub = Math.max(1, Math.round(40 / Math.max(NX, NY)));
+  const VX = NX * sub, VY = NY * sub, cols = [];
+  for (let j = 0; j <= VY; j++) for (let i = 0; i <= VX; i++) cols.push(groundRGB(i / sub, j / sub));
+  for (let j = 0; j < VY; j++) for (let i = 0; i < VX; i++)
+    for (const [a, b] of [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]) {
+      M.tri.p.push((i + a) / sub, 0, (j + b) / sub);
+      M.tri.n.push(0, 1, 0);
+      M.tri.c.push(...cols[(j + b) * (VX + 1) + i + a], 1);
+    }
+  for (const it of groundDetails()) {
+    const c = rgba(shade(g.dcol, .8 + .4 * it.s), 1);
+    switch (g.detail) {
+      case 'pebbles': {
+        const r = .025 + .035 * it.s;
+        lathe(M.tri, (u, h, v) => [it.x + u, h, it.z + v], [[r, 0], [r * .85, r * .45], [0, r * .6]], 5, c);
+        break;
+      }
+      case 'tufts':
+        for (let k = 0; k < 3; k++) {
+          const a = it.a + k * 2.1, px = -Math.sin(a) * .018, pz = Math.cos(a) * .018;
+          const tip = [it.x + Math.cos(a) * .035, .07 + .05 * it.s, it.z + Math.sin(a) * .035];
+          quad(M.tri, [it.x - px, 0, it.z - pz], [it.x + px, 0, it.z + pz], tip, tip, c);
+        }
+        break;
+      case 'cracks': case 'ripples':
+        for (let k = 1; k < it.pts.length; k++)
+          seg(M.line, [it.pts[k - 1][0], .003, it.pts[k - 1][1]], [it.pts[k][0], .003, it.pts[k][1]], rgba(g.dcol, 1));
+        break;
+      case 'puddles': {
+        const c0 = [it.x, .003, it.z], pc = rgba(g.dcol, 1);
+        it.pts.forEach(([x, z], k) => {
+          const [x2, z2] = it.pts[(k + 1) % it.pts.length];
+          quad(M.tri, c0, [x, .003, z], [x2, .003, z2], [x2, .003, z2], pc);
+        });
+        break;
+      }
+    }
+  }
+  if (sc.grid) {
+    const gridCol = rgba(g.grid, 1);
+    for (let i = 0; i <= NX; i++) seg(M.line, [i, 0.002, 0], [i, 0.002, NY], gridCol);
+    for (let i = 0; i <= NY; i++) seg(M.line, [0, 0.002, i], [NX, 0.002, i], gridCol);
+  }
+  if (sc.surround) {
+    const E = 150;
+    quad(M.tri, [-E, -.004, -E], [NX + E, -.004, -E], [NX + E, -.004, NY + E], [-E, -.004, NY + E], rgba(shade(g.base, .85), 1));
+  } else {
+    // Board slab edge, so the board reads as a tabletop tile.
+    const d = -.25, ec = rgba(shade(g.base, .5), 1);
+    quad(M.tri, [0, d, 0], [NX, d, 0], [NX, 0, 0], [0, 0, 0], ec);
+    quad(M.tri, [0, d, NY], [NX, d, NY], [NX, 0, NY], [0, 0, NY], ec);
+    quad(M.tri, [0, d, 0], [0, d, NY], [0, 0, NY], [0, 0, 0], ec);
+    quad(M.tri, [NX, d, 0], [NX, d, NY], [NX, 0, NY], [NX, 0, 0], ec);
+    quad(M.tri, [0, d, 0], [NX, d, 0], [NX, d, NY], [0, d, NY], ec);
+  }
+  groundMeshCache = {key, M};
+  return M;
+}
+
+function buildScene(fadeAbove) {
+  const solid = {tri: mesh(), line: mesh()}, faded = {tri: mesh(), line: mesh()};
+  const layer = f => {
+    const fade = fadeAbove != null && f > fadeAbove;
+    return {M: fade ? faded : solid, A: fade ? 0.22 : 1};
+  };
+
+  // `at` holds square container cubes (used for face culling); `any` also includes round buildings.
+  const at = new Map(), any = new Set();
+  for (const p of state.pieces) if (isBuilding(p)) for (const [x, y] of pieceCells(p)) {
+    any.add(`${x},${y},${p.floor}`);
+    if (!SHAPES[p.shape].round) at.set(`${x},${y},${p.floor}`, p);
+  }
+  const get = (x, y, f) => at.get(`${x},${y},${f}`);
+
+  for (const [k, p] of at) {
+    const [x, y, f] = k.split(',').map(Number);
+    const {M, A} = layer(f);
+    const col = hex => rgba(hex, A);
+    const edge = col(C.edge);
+
+    SIDES.forEach((s, si) => {
+      if (get(x + s.dx, y + s.dy, f)) return;
+      const ax = x + s.a[0], ay = y + s.a[1], bx = x + s.b[0], by = y + s.b[1];
+      const W = (t, h, off = 0) => [ax + (bx - ax) * t + s.dx * off, h, ay + (by - ay) * t + s.dy * off];
+      for (let i = 0; i < 8; i++)
+        quad(M.tri, W(i / 8, f), W((i + 1) / 8, f), W((i + 1) / 8, f + 1), W(i / 8, f + 1), col(i % 2 ? C.wallA : C.wallB));
+      if ((x + y + f + si) % 2 === 0) {
+        quad(M.tri, W(.24, f + .24, .006), W(.76, f + .24, .006), W(.76, f + .72, .006), W(.24, f + .72, .006), edge);
+        quad(M.tri, W(.28, f + .28, .012), W(.72, f + .28, .012), W(.72, f + .68, .012), W(.28, f + .68, .012), col(C.window));
+      }
+      seg(M.line, W(0, f, .003), W(1, f, .003), edge);
+      seg(M.line, W(0, f + 1, .003), W(1, f + 1, .003), edge);
+      const tx = bx - ax, ty = by - ay;
+      // Skip a vertical seam when the wall continues flat into the neighbouring cube.
+      if (!(get(x - tx, y - ty, f) && !get(x - tx + s.dx, y - ty + s.dy, f))) seg(M.line, W(0, f, .003), W(0, f + 1, .003), edge);
+      if (!(get(x + tx, y + ty, f) && !get(x + tx + s.dx, y + ty + s.dy, f))) seg(M.line, W(1, f, .003), W(1, f + 1, .003), edge);
+    });
+
+    if (f > 0 && !get(x, y, f - 1))
+      quad(M.tri, [x, f, y], [x + 1, f, y], [x + 1, f, y + 1], [x, f, y + 1], col(C.wallB));
+
+    if (!get(x, y, f + 1)) {
+      const h = f + 1;
+      quad(M.tri, [x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1], col(roofCol()));
+      for (let i = 1; i < 6; i++) seg(M.line, [x, h + .002, y + i / 6], [x + 1, h + .002, y + i / 6], col(slatCol()));
+      for (const s of SIDES) {
+        if (get(x + s.dx, y + s.dy, f) === p) continue;
+        const ax = x + s.a[0], ay = y + s.a[1], bx = x + s.b[0], by = y + s.b[1];
+        seg(M.line, [ax, h + .003, ay], [bx, h + .003, by], edge);
+        if (p.rail && !any.has(`${x},${y},${h}`)) railing(M.tri, ax, ay, bx, by, -s.dx, -s.dy, h, col(C.rail));
+      }
+    }
+  }
+
+  for (const p of state.pieces) {
+    if (!SHAPES[p.shape].round) continue;
+    const {M, A} = layer(p.floor);
+    const stacked = state.pieces.some(q => q.floor === p.floor + 1 && q.shape === p.shape && q.x === p.x && q.y === p.y);
+    roundModel(M, p, A, any, stacked);
+  }
+
+  const walls = [];
+  for (const p of state.pieces) {
+    if (isBuilding(p)) continue;
+    const {M, A} = layer(p.floor);
+    const cells = pieceCells(p), set = new Set(cells.map(([x, y]) => key(x, y)));
+    walls[p.floor] = walls[p.floor] || wallMap(state.pieces, p.floor);
+    for (const [x, y] of cells) terrainModel(M, p, x, y, set, A, walls[p.floor]);
+  }
+  return {solid, faded};
+}
+
+function railing(m, ax, ay, bx, by, ix, iy, h, col) {
+  const off = 0.05, H = 0.3, w = 0.035, bars = 8;
+  const R = (t, z) => [ax + (bx - ax) * t + ix * off, z, ay + (by - ay) * t + iy * off];
+  quad(m, R(0, h + H - 0.05), R(1, h + H - 0.05), R(1, h + H), R(0, h + H), col);
+  for (let i = 0; i < bars; i++) {
+    const t = (i + 0.5) / bars;
+    quad(m, R(t - w / 2, h), R(t + w / 2, h), R(t + w / 2, h + H), R(t - w / 2, h + H), col);
+  }
+}
+
+function drawMesh(m, mode, lit) {
+  if (!m.p.length) return;
+  const bind = (buf, data, loc, size) => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+  };
+  bind(glBuf.p, m.p, glLoc.p, 3);
+  bind(glBuf.n, m.n, glLoc.n, 3);
+  bind(glBuf.c, m.c, glLoc.c, 4);
+  gl.uniform1f(glLoc.lit, lit);
+  gl.drawArrays(mode, 0, m.p.length / 3);
+}
+
+function renderIso(fadeAbove = state.floor) {
+  if (!gl) return;
+  const dpr = window.devicePixelRatio || 1, w = iso.clientWidth, h = iso.clientHeight;
+  if (!w || !h) return;
+  const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+  if (iso.width !== pw || iso.height !== ph) { iso.width = pw; iso.height = ph; }
+  gl.viewport(0, 0, pw, ph);
+  const bd = BACKDROPS[state.scene.backdrop], top = [...hexRgb(bd.top), 1], bot = [...hexRgb(bd.bottom), 1];
+  gl.clearColor(...bot);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // Backdrop: a vertical gradient drawn straight in clip space, behind everything.
+  const bg = mesh();
+  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) {
+    bg.p.push(x, y, 0); bg.n.push(0, 0, 1); bg.c.push(...(y > 0 ? top : bot));
+  }
+  gl.uniformMatrix4fv(glLoc.m, false, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  gl.uniform3fv(glLoc.k, [1, 1, 1]);
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.BLEND);
+  drawMesh(bg, gl.TRIANGLES, 0);
+  gl.enable(gl.DEPTH_TEST);
+  gl.uniform3fv(glLoc.k, bd.tint);
+
+  const target = [NX / 2, 1, NY / 2];
+  const eye = [
+    target[0] + cam.dist * Math.cos(cam.pitch) * Math.sin(cam.yaw),
+    target[1] + cam.dist * Math.sin(cam.pitch),
+    target[2] + cam.dist * Math.cos(cam.pitch) * Math.cos(cam.yaw),
+  ];
+  gl.uniformMatrix4fv(glLoc.m, false, mul(perspective(0.6, pw / ph, 0.1, 500), lookAt(eye, target, [0, 1, 0])));
+  gl.uniform3fv(glLoc.l, norm([0.5, 0.8, 0.3]));
+
+  const {solid, faded} = buildScene(fadeAbove), ground = groundMesh();
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  drawMesh(ground.tri, gl.TRIANGLES, 1);
+  drawMesh(ground.line, gl.LINES, 0);
+  drawMesh(solid.tri, gl.TRIANGLES, 1);
+  drawMesh(solid.line, gl.LINES, 0);
+  gl.enable(gl.BLEND);
+  gl.depthMask(false);
+  drawMesh(faded.tri, gl.TRIANGLES, 1);
+  drawMesh(faded.line, gl.LINES, 0);
+  gl.depthMask(true);
+}
+
+function moveCam(dyaw, dpitch, zoom) {
+  cam.yaw += dyaw;
+  cam.pitch = Math.max(0.08, Math.min(1.5, cam.pitch + dpitch));
+  cam.dist = Math.max(5, Math.min(6 * Math.max(NX, NY), cam.dist * zoom));
+  renderIso();
+}
+
+// One pointer orbits, two pointers pinch-zoom.
+const ptrs = new Map();
+let pinchDist = 0;
+const ptrDist = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+iso.addEventListener('pointerdown', e => {
+  ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  iso.setPointerCapture(e.pointerId);
+  pinchDist = ptrs.size === 2 ? ptrDist() : 0;
+});
+iso.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size === 1) moveCam(-dx * 0.01, dy * 0.01, 1);
+  else if (ptrs.size === 2) {
+    const d = ptrDist();
+    if (pinchDist && d) moveCam(0, 0, pinchDist / d);
+    pinchDist = d;
+  }
+});
+const ptrEnd = e => { ptrs.delete(e.pointerId); pinchDist = ptrs.size === 2 ? ptrDist() : 0; };
+iso.addEventListener('pointerup', ptrEnd);
+iso.addEventListener('pointercancel', ptrEnd);
+iso.addEventListener('wheel', e => { e.preventDefault(); moveCam(0, 0, Math.exp(e.deltaY * 0.001)); }, {passive: false});
+// Default camera, pulled back to fit the board size.
+const resetCam = () => { Object.assign(cam, DEFAULT_CAM, {dist: DEFAULT_CAM.dist * Math.max(NX, NY) / 10}); renderIso(); };
+iso.addEventListener('dblclick', resetCam);
+document.getElementById('camLeft').onclick = () => moveCam(-Math.PI / 4, 0, 1);
+document.getElementById('camRight').onclick = () => moveCam(Math.PI / 4, 0, 1);
+document.getElementById('camIn').onclick = () => moveCam(0, 0, 0.85);
+document.getElementById('camOut').onclick = () => moveCam(0, 0, 1 / 0.85);
+document.getElementById('camReset').onclick = resetCam;
+new ResizeObserver(() => renderIso()).observe(iso);
+
+const isoPanel = document.getElementById('isoPanel');
+const SIZE_KEY = STORE + '.viewSize';
+try {
+  const sz = JSON.parse(localStorage.getItem(SIZE_KEY));
+  if (sz) { isoPanel.style.width = sz.w; isoPanel.style.height = sz.h; }
+} catch (e) {}
+new ResizeObserver(() => {
+  if (!isoPanel.style.width && !isoPanel.style.height) return;
+  try { localStorage.setItem(SIZE_KEY, JSON.stringify({w: isoPanel.style.width, h: isoPanel.style.height})); } catch (e) {}
+}).observe(isoPanel);
+
+// ---------- UI ----------
+
+function setupCanvas(cv, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.width = w + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+const board = document.getElementById('board');
+const boardW = () => NX * CELL + PAD + 8, boardH = () => NY * CELL + PAD + 8;
+
+function render() {
+  const bctx = setupCanvas(board, boardW(), boardH());
+  bctx.clearRect(0, 0, boardW(), boardH());
+  drawLabels(bctx, CELL, PAD, PAD);
+  drawTop(bctx, state.floor, CELL, PAD, PAD, {selectedId, ghost: ghost()});
+  renderIso();
+
+  document.getElementById('floorLabel').textContent = `Floor ${state.floor + 1}`;
+  const sel = byId(selectedId);
+  document.getElementById('selInfo').textContent = sel ? `Selected: ${SHAPES[sel.shape].name}` : '';
+  document.getElementById('undoBtn').disabled = !history.length;
+  board.style.cursor = state.shape ? 'crosshair' : 'default';
+
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.cat === paletteCat));
+  document.querySelectorAll('.shape-btn').forEach(b => {
+    b.style.display = SHAPES[b.dataset.shape].kind === paletteCat ? '' : 'none';
+    b.classList.toggle('active', b.dataset.shape === state.shape && selectedId === null);
+  });
+  document.getElementById('flipBtn').classList.toggle('active', selectedId === null && state.flip);
+  document.getElementById('railBtn').classList.toggle('active', sel ? isBuilding(sel) && sel.rail : state.rail);
+  document.getElementById('overBtn').classList.toggle('active', overwrite);
+  document.getElementById('selBtn').classList.toggle('active', !state.shape);
+  document.getElementById('delBtn').disabled = !sel;
+
+  const floorsEl = document.getElementById('floors');
+  floorsEl.innerHTML = '';
+  for (let f = 0; f < FLOORS; f++) {
+    const b = document.createElement('button');
+    const count = state.pieces.filter(p => p.floor === f).length;
+    b.innerHTML = `F${f + 1}<small>${count || '&nbsp;'}</small>`;
+    b.className = f === state.floor ? 'active' : '';
+    b.title = `Key ${(f + 1) % 10}`;
+    b.onclick = () => setFloor(f);
+    floorsEl.appendChild(b);
+  }
+
+  document.getElementById('tallyBtn').textContent = `Tally (${state.pieces.length})`;
+  for (const k of ['ground', 'detail', 'backdrop', 'surround', 'grid'])
+    document.querySelectorAll(`#opt-${k} button`).forEach(b => b.classList.toggle('active', b.dataset.v === String(state.scene[k])));
+  if (document.getElementById('tallyDlg').open) renderTally();
+}
+
+const shapeIcons = {};
+let tallyMode = 'floor';
+function renderTally() {
+  const f = state.floor, here = p => p.floor === f, showUnused = document.getElementById('tallyUnused').checked;
+  const count = (list, fn) => list.reduce((n, p) => n + fn(p), 0);
+  const blds = state.pieces.filter(isBuilding), terr = state.pieces.filter(p => !isBuilding(p));
+  const cubes = p => SHAPES[p.shape].round ? 0 : SHAPES[p.shape].cells.length;
+  const all = tallyMode === 'all';
+  document.querySelectorAll('#tallyMode button').forEach(b => b.classList.toggle('active', b.dataset.mode === tallyMode));
+  const stat = (label, list, fn = () => 1) => {
+    const floors = new Set(list.map(p => p.floor)).size;
+    const sub = all ? `across ${floors} floor${floors === 1 ? '' : 's'}` : `${count(list.filter(here), fn)} on floor ${f + 1}`;
+    return `<div class="stat"><span>${label}</span><b>${count(list, fn)}</b><small>${sub}</small></div>`;
+  };
+  const stats = `<div class="stats">${stat('All pieces', state.pieces)}${stat('Buildings', blds)}` +
+    `${stat('Container cubes', blds, cubes)}${stat('Terrain', terr)}</div>`;
+
+  if (all) {
+    // One row per piece type, one column per floor in use.
+    const used = [...new Set(state.pieces.map(p => p.floor))].sort((a, b) => a - b);
+    const table = (kind, title) => {
+      const pieces = kind === 'building' ? blds : terr;
+      const head = used.map(u => `<th class="${u === f ? 'cur' : ''}">F${u + 1}</th>`).join('');
+      const cell = n => n ? `<td>${n}</td>` : `<td class="z">&ndash;</td>`;
+      let rows = '';
+      for (const [k, s] of Object.entries(SHAPES)) {
+        if (s.kind !== kind) continue;
+        const mine = pieces.filter(p => p.shape === k);
+        if (!mine.length && !showUnused) continue;
+        rows += `<tr><td><span class="name"><img src="${shapeIcons[k]}" alt="">${s.name}</span></td>` +
+          used.map(u => cell(mine.filter(p => p.floor === u).length)).join('') + `<td class="tot">${mine.length || '&ndash;'}</td></tr>`;
+      }
+      const foot = (label, fn) => `<tr><td>${label}</td>` +
+        used.map(u => cell(count(pieces.filter(p => p.floor === u), fn))).join('') + `<td class="tot">${count(pieces, fn)}</td></tr>`;
+      return `<h2>${title}</h2><div class="tally-list scroll-x">` + (rows
+        ? `<table class="floor-table"><thead><tr><th>Piece</th>${head}<th class="tot">Total</th></tr></thead><tbody>${rows}</tbody>` +
+          `<tfoot>${foot('All ' + title.toLowerCase(), () => 1)}${kind === 'building' ? foot('Container cubes', cubes) : ''}</tfoot></table>`
+        : `<div class="tally-empty">None placed yet</div>`) + `</div>`;
+    };
+    document.getElementById('tallyContent').innerHTML = stats + table('building', 'Buildings') + table('terrain', 'Terrain');
+    return;
+  }
+
+  const list = (kind, title) => {
+    let rows = '';
+    for (const [k, s] of Object.entries(SHAPES)) {
+      if (s.kind !== kind) continue;
+      const all = state.pieces.filter(p => p.shape === k), n = all.filter(here).length;
+      if (!all.length && !showUnused) continue;
+      rows += `<div class="tally-row${all.length ? '' : ' unused'}"><img src="${shapeIcons[k]}" alt=""><span>${s.name}</span>` +
+        `<span class="n">${n || '&ndash;'}</span><span class="n tot">${all.length || '&ndash;'}</span></div>`;
+    }
+    return `<div><h2>${title}</h2><div class="tally-list">` +
+      `<div class="tally-row head"><span></span><span>Piece</span><span class="n">Floor ${f + 1}</span><span class="n">Total</span></div>` +
+      (rows || `<div class="tally-empty">None placed yet</div>`) + `</div></div>`;
+  };
+  document.getElementById('tallyContent').innerHTML =
+    stats + `<div class="tally-cols">${list('building', 'Buildings')}${list('terrain', 'Terrain')}</div>`;
+}
+
+function buildPalette() {
+  const pal = document.getElementById('palette');
+  for (const [k, s] of Object.entries(SHAPES)) {
+    const b = document.createElement('button');
+    b.className = 'shape-btn';
+    b.dataset.shape = k;
+    const c = s.kind === 'terrain' ? 22 : 12, w = 52, h = 40;
+    const cv = document.createElement('canvas');
+    const ctx = setupCanvas(cv, w, h);
+    const mw = Math.max(...s.cells.map(a => a[0])) + 1, mh = Math.max(...s.cells.map(a => a[1])) + 1;
+    drawPiece(ctx, {shape: k, rot: 0, flip: false, rail: true}, s.cells, (w - mw * c) / 2, (h - mh * c) / 2, c, null, 1);
+    b.appendChild(cv);
+    shapeIcons[k] = cv.toDataURL();
+    b.appendChild(document.createTextNode(s.name));
+    b.onclick = () => {
+      // Clicking the piece you're already holding puts it down, leaving a plain select cursor.
+      state.shape = state.shape === k && selectedId === null ? null : k;
+      selectedId = null;
+      setStatus(state.shape ? '' : 'Holding nothing: click pieces on the board to select them');
+      save(); render();
+    };
+    pal.appendChild(b);
+  }
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  paletteCat = b.dataset.cat;
+  if (state.shape && SHAPES[state.shape].kind !== paletteCat) state.shape = Object.keys(SHAPES).find(k => SHAPES[k].kind === paletteCat);
+  selectedId = null;
+  save(); render();
+});
+
+function cellFromEvent(e) {
+  const r = board.getBoundingClientRect();
+  const scale = boardW() / r.width;
+  const x = Math.floor(((e.clientX - r.left) * scale - PAD) / CELL);
+  const y = Math.floor(((e.clientY - r.top) * scale - PAD) / CELL);
+  return x >= 0 && y >= 0 && x < NX && y < NY ? {x, y} : null;
+}
+
+// Hover preview is mouse-only; touch has no hover, so a tap acts straight away.
+let lastPointer = 'mouse', tapFlash;
+board.addEventListener('pointerdown', e => { lastPointer = e.pointerType; });
+board.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  const c = cellFromEvent(e);
+  if ((c && hover && c.x === hover.x && c.y === hover.y) || (!c && !hover)) return;
+  hover = c; render();
+});
+board.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { hover = null; render(); } });
+function tapCell(c) {
+  hover = c;
+  if (overwrite && state.shape) { place(); return; }
+  const hit = occupancy(state.pieces, state.floor).get(key(c.x, c.y));
+  if (hit) { selectedId = hit.id === selectedId ? null : hit.id; setStatus(''); render(); return; }
+  if (selectedId !== null) { selectedId = null; render(); return; }
+  place();
+}
+board.addEventListener('click', e => {
+  const c = cellFromEvent(e);
+  if (!c) return;
+  if (lastPointer === 'mouse') { tapCell(c); return; }
+  setStatus('');
+  tapCell(c);
+  // Briefly show the red ghost where a touch placement failed, then drop the hover.
+  const failed = document.getElementById('status').classList.contains('err');
+  hover = failed ? c : null;
+  render();
+  clearTimeout(tapFlash);
+  if (failed) tapFlash = setTimeout(() => { hover = null; render(); }, 700);
+});
+
+// Phone board zoom: pinch on the board or the + / - buttons, keeping the view centred.
+const boardScroll = document.getElementById('boardScroll');
+function setZoom(z) {
+  const el = boardScroll, old = CELL;
+  const cx = (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth, cy = (el.scrollTop + el.clientHeight / 2) / el.scrollHeight;
+  boardZoom = Math.max(.5, Math.min(3, z));
+  fitCell();
+  if (CELL === old) return;
+  render();
+  el.scrollLeft = cx * el.scrollWidth - el.clientWidth / 2;
+  el.scrollTop = cy * el.scrollHeight - el.clientHeight / 2;
+}
+document.getElementById('zoomIn').onclick = () => setZoom(boardZoom * 1.25);
+document.getElementById('zoomOut').onclick = () => setZoom(boardZoom / 1.25);
+document.getElementById('zoomFit').onclick = () => setZoom(1);
+let boardPinch = null, pinchFrame = 0;
+const touchDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+boardScroll.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) boardPinch = {d: touchDist(e.touches), z: boardZoom};
+}, {passive: true});
+boardScroll.addEventListener('touchmove', e => {
+  if (!boardPinch || e.touches.length !== 2) return;
+  e.preventDefault();
+  const z = boardPinch.z * touchDist(e.touches) / boardPinch.d;
+  cancelAnimationFrame(pinchFrame);
+  pinchFrame = requestAnimationFrame(() => setZoom(z));
+}, {passive: false});
+boardScroll.addEventListener('touchend', e => { if (e.touches.length < 2) boardPinch = null; });
+// Refit when the board area changes size (rotation, address bar, switching views).
+new ResizeObserver(() => { const old = CELL; fitCell(); if (CELL !== old) render(); }).observe(boardScroll);
+PHONE_MQ.addEventListener('change', () => { setMenu(false); fitCell(); render(); });
+
+// Phone app bar: Plan / 3D switch and the overflow menu.
+const header = document.querySelector('header'), menuBtn = document.getElementById('menuBtn');
+function setMenu(open) {
+  header.classList.toggle('menu-open', open);
+  menuBtn.setAttribute('aria-expanded', open);
+}
+menuBtn.onclick = () => setMenu(!header.classList.contains('menu-open'));
+document.addEventListener('click', e => { if (!e.target.closest('#menuBtn')) setMenu(false); });
+function setView(v) {
+  document.body.classList.toggle('view-3d', v === '3d');
+  document.querySelectorAll('#viewTabs button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+}
+document.querySelectorAll('#viewTabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
+setView('plan');
+document.getElementById('helpBtn').onclick = () => document.getElementById('helpDlg').showModal();
+document.getElementById('selBtn').onclick = () => {
+  state.shape = null; selectedId = null;
+  setStatus('Holding nothing: tap pieces to select them');
+  save(); render();
+};
+document.getElementById('delBtn').onclick = () => { if (selectedId !== null) deletePiece(selectedId); };
+board.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const c = cellFromEvent(e);
+  if (!c) return;
+  const hit = occupancy(state.pieces, state.floor).get(key(c.x, c.y));
+  if (hit) deletePiece(hit.id);
+});
+
+// ---------- Dialogs ----------
+
+function buildSceneOptions() {
+  const add = (key, entries, swatch) => {
+    const el = document.getElementById('opt-' + key);
+    for (const [v, label, bg] of entries) {
+      const b = document.createElement('button');
+      b.dataset.v = String(v);
+      if (swatch) {
+        b.className = 'swatch';
+        const sw = document.createElement('span');
+        sw.style.background = bg;
+        b.appendChild(sw);
+      }
+      b.appendChild(document.createTextNode(label));
+      b.onclick = () => { state.scene[key] = v; save(); render(); };
+      el.appendChild(b);
+    }
+  };
+  add('ground', Object.entries(GROUNDS).map(([k, g]) =>
+    [k, g.name, `radial-gradient(circle at 30% 35%, ${g.accent} 0 18%, transparent 19%), radial-gradient(circle at 72% 70%, ${g.dcol} 0 9%, transparent 10%), ${g.base}`]), true);
+  add('backdrop', Object.entries(BACKDROPS).map(([k, b]) => [k, b.name, `linear-gradient(${b.top}, ${b.bottom})`]), true);
+  for (const k of ['detail', 'surround', 'grid']) add(k, SCENE_OPTS[k]);
+}
+document.querySelectorAll('dialog').forEach(d => {
+  d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
+});
+document.getElementById('sceneBtn').onclick = () => document.getElementById('sceneDlg').showModal();
+document.getElementById('tallyBtn').onclick = () => { renderTally(); document.getElementById('tallyDlg').showModal(); };
+document.getElementById('tallyUnused').onchange = renderTally;
+// Per-viewer UI preferences: tally view and whether the Controls box is collapsed.
+const UI_KEY = STORE + '.ui';
+function saveUi() {
+  try { localStorage.setItem(UI_KEY, JSON.stringify({tallyMode, controls: controlsPanel.open})); } catch (e) {}
+}
+const controlsPanel = document.getElementById('controlsPanel');
+try {
+  const ui = JSON.parse(localStorage.getItem(UI_KEY));
+  if (ui) { if (ui.tallyMode === 'all') tallyMode = 'all'; controlsPanel.open = ui.controls !== false; }
+} catch (e) {}
+controlsPanel.addEventListener('toggle', saveUi);
+document.querySelectorAll('#tallyMode button').forEach(b => b.onclick = () => { tallyMode = b.dataset.mode; saveUi(); renderTally(); });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && header.classList.contains('menu-open')) { setMenu(false); return; }
+  if (document.querySelector('dialog[open]')) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^[0-9]$/.test(k)) setFloor(k === '0' ? 9 : +k - 1);
+  else if (k === 'r') rotate();
+  else if (k === 'f') flip();
+  else if (k === 't') toggleRail();
+  else if (k === 'o') toggleOverwrite();
+  else if (k === 'delete' || k === 'backspace') { if (selectedId !== null) { e.preventDefault(); deletePiece(selectedId); } }
+  else if (k === 'escape') {
+    if (selectedId !== null) selectedId = null;
+    else state.shape = null;
+    setStatus(''); save(); render();
+  }
+  else if (k === 'pageup') { e.preventDefault(); setFloor(state.floor + 1); }
+  else if (k === 'pagedown') { e.preventDefault(); setFloor(state.floor - 1); }
+});
+
+document.getElementById('undoBtn').onclick = undo;
+document.getElementById('rotBtn').onclick = rotate;
+document.getElementById('flipBtn').onclick = flip;
+document.getElementById('railBtn').onclick = toggleRail;
+document.getElementById('overBtn').onclick = toggleOverwrite;
+
+// Warning popup; runs onOk only if the user confirms.
+function confirmDialog(title, msg, okLabel, onOk) {
+  const d = document.getElementById('confirmDlg');
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').textContent = msg;
+  const ok = document.getElementById('confirmOk');
+  ok.textContent = okLabel;
+  ok.onclick = () => { d.close(); onOk(); };
+  d.showModal();
+  document.getElementById('confirmCancel').focus();
+}
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+// Settings: board size.
+const sizeW = document.getElementById('sizeW'), sizeH = document.getElementById('sizeH'), sizeErr = document.getElementById('sizeErr');
+for (const [w, h] of [[10, 10], [12, 12], [16, 16], [20, 20], [30, 22]]) {
+  const b = document.createElement('button');
+  b.textContent = `${w}×${h}`;
+  b.onclick = () => { sizeW.value = w; sizeH.value = h; sizeErr.textContent = ''; };
+  document.getElementById('sizePresets').appendChild(b);
+}
+document.getElementById('settingsBtn').onclick = () => {
+  sizeW.value = NX; sizeH.value = NY; sizeErr.textContent = '';
+  document.getElementById('settingsDlg').showModal();
+};
+document.getElementById('sizeApply').onclick = () => {
+  const w = clampSize(sizeW.value), h = clampSize(sizeH.value);
+  sizeW.value = w; sizeH.value = h;
+  // Smallest size that still holds every placed piece.
+  let needW = 0, needH = 0;
+  for (const p of state.pieces) for (const [x, y] of pieceCells(p)) { needW = Math.max(needW, x + 1); needH = Math.max(needH, y + 1); }
+  if (w < needW || h < needH) {
+    sizeErr.textContent = `Pieces reach column ${colLabel(needW - 1)}, row ${needH}. Pick at least ${Math.max(w, needW)}×${Math.max(h, needH)}, or move those pieces first.`;
+    return;
+  }
+  document.getElementById('settingsDlg').close();
+  if (w === NX && h === NY) return;
+  setBoardSize(w, h);
+  hover = null;
+  save(); render(); resetCam();
+  setStatus(`Board resized to ${w}×${h}`);
+};
+for (const el of [sizeW, sizeH]) el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('sizeApply').click(); });
+document.getElementById('clearFloor').onclick = () => {
+  const f = state.floor, n = state.pieces.filter(p => p.floor === f).length;
+  if (!n) { setStatus(`Floor ${f + 1} is already empty`); return; }
+  const list = state.pieces.filter(p => p.floor !== f);
+  if (validate(list)) { setStatus('Can\'t clear: pieces on the floor above would be left floating', true); return; }
+  confirmDialog(`Clear floor ${f + 1}?`, `This removes ${plural(n, 'piece')} from floor ${f + 1}. You can bring them back with Undo.`,
+    'Clear floor', () => commit(list, `Floor ${f + 1} cleared`));
+};
+document.getElementById('clearAll').onclick = () => {
+  const n = state.pieces.length;
+  if (!n) { setStatus('The board is already empty'); return; }
+  const floors = new Set(state.pieces.map(p => p.floor)).size;
+  confirmDialog('Clear the whole board?', `This removes all ${plural(n, 'piece')} across ${plural(floors, 'floor')}. You can bring them back with Undo.`,
+    'Clear all', () => commit([], 'Board cleared (Undo brings it back)'));
+};
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+document.getElementById('exportJson').onclick = () => {
+  const data = {version: 1, pieces: state.pieces.map(({shape, rot, flip, rail, x, y, floor}) => ({shape, rot, flip, rail, x, y, floor})), board: state.board, scene: state.scene};
+  download(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}), 'ttp-layout.json');
+};
+document.getElementById('importJson').onclick = () => document.getElementById('fileIn').click();
+document.getElementById('fileIn').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const pieces = sanitize(Array.isArray(data) ? data : data.pieces || [], state.nextId);
+    const prev = [NX, NY];
+    if (data.board) setBoardSize(data.board.w, data.board.h);
+    const err = validate(pieces);
+    if (err) { setBoardSize(...prev); setStatus('Import failed: ' + err, true); return; }
+    if (data.board) resetCam();
+    state.nextId += pieces.length;
+    selectedId = null;
+    if (data.scene) state.scene = sanitizeScene(data.scene);
+    commit(pieces, `Imported ${pieces.length} pieces`);
+  } catch (err) {
+    setStatus('Import failed: not a valid layout file', true);
+  }
+};
+
+document.getElementById('exportPng').onclick = () => {
+  const used = [...new Set(state.pieces.map(p => p.floor))].sort((a, b) => a - b);
+  const mini = Math.max(12, Math.min(24, Math.floor(240 / Math.max(NX, NY)))), mpad = 24, cols = 3;
+  const tile = NX * mini + mpad * 2, tileH = NY * mini + mpad * 2;
+  const W = Math.max(900, cols * tile + 40);
+  let view = 0;
+  if (gl) { renderIso(null); view = Math.round((W - 40) * iso.height / iso.width); }
+  const top = 50 + (view ? view + 20 : 0);
+  const rows = Math.ceil(used.length / cols);
+  const H = top + rows * (tileH + 20) + 20;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#1b1d20'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#e6e6e6'; ctx.font = 'bold 18px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  const blds = state.pieces.filter(isBuilding);
+  const cubes = blds.reduce((n, p) => n + SHAPES[p.shape].cells.length, 0);
+  ctx.fillText(`Tabletop Terrain Planner - ${NX}x${NY} board, ${blds.length} buildings, ${cubes} cubes, ${state.pieces.length - blds.length} terrain pieces`, 20, 16);
+  if (view) { ctx.drawImage(iso, 20, 50, W - 40, view); renderIso(); }
+  used.forEach((f, i) => {
+    const ox = 20 + (i % cols) * tile + mpad, oy = top + Math.floor(i / cols) * (tileH + 20) + mpad;
+    ctx.fillStyle = '#e6e6e6'; ctx.font = 'bold 14px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText(`Floor ${f + 1}`, ox, oy - 22);
+    drawLabels(ctx, mini, ox, oy);
+    drawTop(ctx, f, mini, ox, oy);
+  });
+  cv.toBlob(b => download(b, 'ttp-layout.png'));
+};
+
+initGL();
+if (!gl) iso.replaceWith(Object.assign(document.createElement('p'), {textContent: '3D view needs WebGL, which this browser has disabled.', className: 'help'}));
+load();
+fitCell();
+Object.assign(cam, {dist: DEFAULT_CAM.dist * Math.max(NX, NY) / 10});
+buildPalette();
+buildSceneOptions();
+render();
+
+// Installable / offline app support. Service workers need http(s), so this is skipped when opened as a local file.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
-  <script type="module" crossorigin src="/Tasker/assets/index-CYpg_6Ry.js"></script>
-</head>
-  <body class="bg-rs-dark text-rs-text h-screen overflow-hidden selection:bg-rs-gold selection:text-rs-dark">
-    <div id="root"></div>
 </body>
 </html>

@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Tabletop Terrain Planner",
+  "short_name": "TTP",
+  "description": "Plan tabletop wargaming terrain layouts: modular container buildings, scatter terrain and multi-floor ruins, in 2D and 3D.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1b1d20",
+  "theme_color": "#26292d",
+  "categories": ["games", "entertainment", "utilities"],
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
