@@ -2,9 +2,10 @@
 // Files are served from that copy straight away and refreshed in the background, so a new
 // version you publish shows up the second time the app is opened.
 // Bump VERSION when you add or rename files in FILES.
-const VERSION = 'ttp-v1';
+const VERSION = 'ttp-v2';
 const FILES = [
   './',
+  './privacy.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
