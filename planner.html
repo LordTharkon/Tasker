@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#26292d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Tabletop Terrain Planner</title>
 <style>
 :root{--bg:#1b1d20;--panel:#26292d;--line:#383c42;--text:#e6e6e6;--muted:#9aa0a6;--accent:#f0a830;--bad:#e5484d}
@@ -11,10 +15,10 @@ body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,"Se
 header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
 header h1{font-size:16px;margin:0 auto 0 0}
 button{background:#363a40;color:var(--text);border:1px solid #4a4f56;border-radius:6px;padding:6px 10px;cursor:pointer;font:inherit}
-button:hover{background:#444950}
+@media (hover:hover){button:hover{background:#444950}}
 button:disabled{opacity:.4;cursor:default;background:#363a40}
 button.active{background:var(--accent);color:#111;border-color:var(--accent)}
-button.danger:hover{background:var(--bad);border-color:var(--bad)}
+@media (hover:hover){button.danger:hover{background:var(--bad);border-color:var(--bad)}}
 main{display:grid;grid-template-columns:250px minmax(0,auto) minmax(0,1fr);gap:16px;padding:16px;align-items:start}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:16px}
 h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
@@ -38,11 +42,11 @@ header h1 .tag{font-size:11px;font-weight:600;color:var(--accent);border:1px sol
 .hint-line{font-size:12px;color:var(--muted);margin:10px 0 0}
 .err-line{font-size:13px;color:var(--bad);margin:6px 0 10px;min-height:1em}
 button.primary{background:var(--accent);border-color:var(--accent);color:#111}
-button.primary:hover{background:#f5bb55}
+@media (hover:hover){button.primary:hover{background:#f5bb55}}
 .confirm p{margin:8px 0 16px;color:var(--muted)}
 .confirm-actions{justify-content:flex-end}
 .danger-solid{background:var(--bad);border-color:var(--bad);color:#fff}
-.danger-solid:hover{background:#c93c40}
+@media (hover:hover){.danger-solid:hover{background:#c93c40}}
 .tally-mode{margin-top:12px;max-width:280px}
 .floor-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
 .floor-table th,.floor-table td{padding:5px 6px;text-align:right}
@@ -105,38 +109,141 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .seg button{flex:1}
 @media (max-width:1100px){main{grid-template-columns:250px 1fr}.right{grid-column:1/-1}}
 @media (max-width:720px){main{grid-template-columns:1fr;padding:12px}}
+.mobile-only,.ico{display:none}
+.menu{display:contents}
+
+/* Phone layout: app bar, floor strip, full-bleed board and a bottom dock. Keep in sync with PHONE_MQ in the script. */
+@media (max-width:720px), (pointer:coarse) and (max-height:500px){
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{display:flex;flex-direction:column;height:100vh;height:100dvh;-webkit-tap-highlight-color:transparent}
+  button{min-height:40px;touch-action:manipulation}
+  header{flex:none;flex-wrap:nowrap;gap:6px;position:relative;z-index:20;
+    padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) 6px max(8px,env(safe-area-inset-left))}
+  header h1{font-size:15px;white-space:nowrap}
+  header h1 .full{display:none}
+  header h1 .tag{margin-left:0;font-size:13px;padding:3px 7px}
+  #viewTabs{display:flex}
+  #viewTabs button{padding:6px 14px}
+  #menuBtn{display:inline-block;min-width:44px}
+  .menu{display:none;position:absolute;top:calc(100% + 4px);right:8px;flex-direction:column;gap:2px;min-width:210px;
+    max-height:calc(100dvh - 90px);overflow:auto;padding:6px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.55)}
+  header.menu-open .menu{display:flex}
+  .menu button{text-align:left;min-height:46px;padding:10px 12px;font-size:15px;background:transparent;border-color:transparent}
+  .menu button:active{background:#444950}
+  .menu .danger{color:#ff8a8d}
+  .menu .icon-btn{font-size:15px;line-height:1.4}
+  .menu .mobile-only{display:inline}
+  .menu hr{width:100%;border:0;border-top:1px solid var(--line);margin:4px 0}
+
+  main{flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0}
+  main>*,.left>*{min-width:0}
+  .left{display:contents}
+  .panel{margin:0;border-radius:0;border-left:0;border-right:0}
+  #controlsPanel{display:none}
+  #floorPanel{order:1;flex:none;padding:6px 8px;border-top:0}
+  #floorPanel h2{display:none}
+  #floors{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  #floors::-webkit-scrollbar,#palette::-webkit-scrollbar{display:none}
+  #floors button{flex:none;min-width:52px;padding:3px 8px;font-size:13px}
+
+  .center{order:2;flex:1;min-height:0;display:flex;flex-direction:column;position:relative;padding:6px 0 0;border:0;background:var(--bg)}
+  .boardhead{gap:8px;padding:0 8px 0 12px;margin-bottom:2px}
+  #selInfo{margin-right:auto;min-width:0;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .board-scroll{flex:1;min-height:0;display:flex;overflow:auto;touch-action:pan-x pan-y;overscroll-behavior:contain}
+  #board{margin:auto;max-width:none;flex:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .zoom{display:flex;flex:none;gap:4px}
+  .zoom button{min-width:42px;min-height:38px;padding:4px 8px;font-size:17px}
+  .zoom #zoomFit{font-size:13px}
+  #status{position:absolute;left:10px;right:10px;bottom:10px;margin:0;min-height:0;padding:8px 12px;border-radius:8px;
+    background:rgba(20,22,24,.92);color:var(--text);text-align:center;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  #status:empty{display:none}
+  #status.err{color:#fff;background:rgba(190,50,55,.95)}
+
+  .right{order:2;flex:1;min-height:0;display:flex;flex-direction:column}
+  body:not(.view-3d) .right,body.view-3d .center,body.view-3d #palettePanel{display:none}
+  .iso-panel{flex:1;width:auto!important;height:auto!important;min-width:0;min-height:0;resize:none;border:0;padding:0;background:var(--bg)}
+  .iso-panel h2,.iso-panel .hint{display:none}
+  #iso{border-radius:0}
+  .iso-panel .row{justify-content:center;margin:0;padding:8px 8px max(8px,env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+  .iso-panel .row button{min-width:52px;min-height:46px;font-size:18px}
+  .iso-panel #camReset{font-size:14px}
+
+  #palettePanel{order:3;flex:none;padding:6px 8px max(6px,env(safe-area-inset-bottom));box-shadow:0 -6px 16px rgba(0,0,0,.35);z-index:5}
+  #palettePanel .tabs{margin-bottom:6px}
+  #palettePanel .tabs button{min-height:34px}
+  #palette{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none}
+  #palette .shape-btn{flex:none;width:72px;min-height:66px;font-size:11px;scroll-snap-align:start}
+  #palettePanel .row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin-top:6px}
+  #palettePanel .row button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:50px;padding:4px 2px;font-size:11px;white-space:nowrap;overflow:hidden}
+  .ico{display:block;font-size:19px;line-height:1.1;font-weight:400}
+  .key{display:none}
+
+  dialog,dialog.confirm,#tallyDlg{width:100%;max-width:100%;max-height:88dvh;margin:auto 0 0;border-radius:16px 16px 0 0;border-bottom:0}
+  .dlg{padding:16px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .x{min-width:44px;min-height:44px}
+  .size-row input{font-size:16px;min-height:44px}
+  .swatches{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .seg button{min-height:44px}
+  .confirm-actions button{flex:1}
+  .check{min-height:44px}
+  .help li{margin-bottom:6px}
+}
+/* Phone on its side: board on the left, palette dock down the right. */
+@media (pointer:coarse) and (max-height:500px) and (orientation:landscape){
+  main{display:grid;grid-template-columns:minmax(0,1fr) 260px;grid-template-rows:auto minmax(0,1fr);padding-left:env(safe-area-inset-left)}
+  body.view-3d main{grid-template-columns:minmax(0,1fr)}
+  #floorPanel{grid-column:1;grid-row:1}
+  .center,.right{grid-column:1;grid-row:2}
+  #palettePanel{grid-column:2;grid-row:1/3;overflow-y:auto;box-shadow:none;border-left:1px solid var(--line);
+    padding-right:max(8px,env(safe-area-inset-right))}
+  #palette{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+  #palette .shape-btn{width:auto}
+  #palettePanel .row{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
 </style>
 </head>
 <body>
 <header>
-  <h1>Tabletop Terrain Planner <span class="tag">TTP</span></h1>
+  <h1><span class="full">Tabletop Terrain Planner</span> <span class="tag">TTP</span></h1>
+  <div class="seg mobile-only" id="viewTabs">
+    <button data-view="plan">Plan</button>
+    <button data-view="3d">3D</button>
+  </div>
   <button id="undoBtn" title="Ctrl+Z">Undo</button>
-  <button id="sceneBtn">Scene</button>
-  <button id="tallyBtn">Tally</button>
-  <button id="exportJson">Export JSON</button>
-  <button id="importJson">Import JSON</button>
-  <input type="file" id="fileIn" accept=".json,application/json" hidden>
-  <button id="exportPng">Export PNG</button>
-  <button id="clearFloor" class="danger">Clear floor</button>
-  <button id="clearAll" class="danger">Clear all</button>
-  <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">&#9881;&#xFE0E;</button>
+  <div class="menu" id="menu">
+    <button id="sceneBtn">Scene</button>
+    <button id="tallyBtn">Tally</button>
+    <button id="exportJson">Export JSON</button>
+    <button id="importJson">Import JSON</button>
+    <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    <button id="exportPng">Export PNG</button>
+    <button id="clearFloor" class="danger">Clear floor</button>
+    <button id="clearAll" class="danger">Clear all</button>
+    <hr class="mobile-only">
+    <button id="helpBtn" class="mobile-only">How to use</button>
+    <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">&#9881;&#xFE0E;<span class="mobile-only"> Settings</span></button>
+  </div>
+  <button id="menuBtn" class="icon-btn mobile-only" aria-label="Menu" aria-expanded="false" aria-controls="menu">&#8942;</button>
 </header>
 <main>
   <div class="left">
-    <div class="panel">
+    <div class="panel" id="palettePanel">
       <div class="tabs">
         <button data-cat="building">Buildings</button>
         <button data-cat="terrain">Terrain</button>
       </div>
       <div id="palette"></div>
       <div class="row">
-        <button id="rotBtn" title="R">Rotate (R)</button>
-        <button id="flipBtn" title="F">Flip (F)</button>
-        <button id="railBtn" title="T">Railings (T)</button>
-        <button id="overBtn" title="O">Overwrite (O)</button>
+        <button id="selBtn" class="mobile-only"><b class="ico">&#8598;&#xFE0E;</b>Select</button>
+        <button id="rotBtn" title="R"><b class="ico">&#10227;&#xFE0E;</b>Rotate<span class="key"> (R)</span></button>
+        <button id="flipBtn" title="F"><b class="ico">&#8646;&#xFE0E;</b>Flip<span class="key"> (F)</span></button>
+        <button id="railBtn" title="T"><b class="ico">&#8851;&#xFE0E;</b>Rail<span class="key">ings (T)</span></button>
+        <button id="overBtn" title="O"><b class="ico">&#10697;&#xFE0E;</b>Overwrite<span class="key"> (O)</span></button>
+        <button id="delBtn" class="mobile-only danger"><b class="ico">&#10005;&#xFE0E;</b>Delete</button>
       </div>
     </div>
-    <div class="panel">
+    <div class="panel" id="floorPanel">
       <h2>Floor</h2>
       <div id="floors"></div>
     </div>
@@ -157,9 +264,16 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     </details>
   </div>
   <div class="center panel">
-    <div class="boardhead"><strong id="floorLabel">Floor 1</strong><span id="selInfo"></span></div>
-    <canvas id="board"></canvas>
-    <div id="status"></div>
+    <div class="boardhead">
+      <strong id="floorLabel">Floor 1</strong><span id="selInfo"></span>
+      <div class="zoom mobile-only">
+        <button id="zoomOut" aria-label="Zoom out">&minus;</button>
+        <button id="zoomFit">Fit</button>
+        <button id="zoomIn" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="board-scroll" id="boardScroll"><canvas id="board"></canvas></div>
+    <div id="status" role="status"></div>
   </div>
   <div class="right">
     <div class="panel iso-panel" id="isoPanel">
@@ -184,6 +298,21 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     <h2>Backdrop</h2><div class="swatches" id="opt-backdrop"></div>
     <h2>Surroundings</h2><div class="seg" id="opt-surround"></div>
     <h2>Grid lines in 3D</h2><div class="seg" id="opt-grid"></div>
+  </div>
+</dialog>
+<dialog id="helpDlg">
+  <div class="dlg">
+    <div class="dlg-head"><h3>How to use</h3><button class="x" data-close title="Close">&times;</button></div>
+    <ul class="help">
+      <li>Pick a piece in the bar at the bottom, then tap an empty cell to place it</li>
+      <li>Tap a placed piece to select it: Rotate, Flip, Rail and Delete then act on it</li>
+      <li>With nothing selected, Rotate, Flip and Rail set up the next piece you place</li>
+      <li>Select puts down the piece you're holding, so taps only select</li>
+      <li>Overwrite: taps replace whatever is underneath</li>
+      <li>Pinch or use + / &minus; to zoom the plan, drag to scroll big boards</li>
+      <li>Switch to 3D at the top: drag to orbit, pinch to zoom, double-tap to reset</li>
+      <li>Upper floors may overhang, but need at least one building cube underneath</li>
+    </ul>
   </div>
 </dialog>
 <dialog id="tallyDlg">
@@ -231,7 +360,18 @@ const FLOORS = 10, STORE = 'containerLayoutPlanner.v1', HISTORY_MAX = 200;
 const MIN_SIZE = 4, MAX_SIZE = 30, PAD = 24;
 // Board size in cells (columns x rows); set from state.board. CELL is the 2D cell size in px, fitted to the board.
 let NX = 10, NY = 10, CELL = 48;
-const fitCell = () => { CELL = Math.max(18, Math.min(48, Math.floor(560 / Math.max(NX, NY)))); };
+// Phone layout switch; must match the phone @media rule in the stylesheet.
+const PHONE_MQ = matchMedia('(max-width:720px), (pointer:coarse) and (max-height:500px)');
+let boardZoom = 1; // phone only: pinch / +- zoom on top of the fitted cell size
+function fitCell() {
+  if (!PHONE_MQ.matches) { CELL = Math.max(18, Math.min(48, Math.floor(560 / Math.max(NX, NY)))); return; }
+  // Fit the board to the space between the floor strip and the dock, keeping cells big enough to tap.
+  // offset* includes any scrollbar, so the fit doesn't flip-flop as scrollbars come and go.
+  const el = document.getElementById('boardScroll');
+  const w = el.offsetWidth || window.innerWidth, h = el.offsetHeight || window.innerHeight / 2;
+  const fit = Math.floor(Math.min((w - PAD - 12) / NX, (h - PAD - 12) / NY));
+  CELL = Math.max(12, Math.min(96, Math.round(Math.max(fit, 24) * boardZoom)));
+}
 const C = {
   roof: '#45494e', slat: '#373a3e',
   wallA: '#35383c', wallB: '#2b2e31', edge: '#141618', window: '#9aa0a6', rail: '#a3a8ad',
@@ -453,10 +593,14 @@ function setFloor(f) {
   save(); render();
 }
 
+let statusTimer;
 function setStatus(msg, err) {
   const el = document.getElementById('status');
   el.textContent = msg;
   el.className = err ? 'err' : '';
+  clearTimeout(statusTimer);
+  // On phones the status is a toast over the board, so let it go away by itself.
+  if (msg && PHONE_MQ.matches) statusTimer = setTimeout(() => setStatus(''), err ? 5000 : 3000);
 }
 
 function save() {
@@ -1380,15 +1524,30 @@ function moveCam(dyaw, dpitch, zoom) {
   renderIso();
 }
 
-let drag = null;
-iso.addEventListener('pointerdown', e => { drag = {x: e.clientX, y: e.clientY}; iso.setPointerCapture(e.pointerId); });
-iso.addEventListener('pointermove', e => {
-  if (!drag) return;
-  moveCam(-(e.clientX - drag.x) * 0.01, (e.clientY - drag.y) * 0.01, 1);
-  drag = {x: e.clientX, y: e.clientY};
+// One pointer orbits, two pointers pinch-zoom.
+const ptrs = new Map();
+let pinchDist = 0;
+const ptrDist = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+iso.addEventListener('pointerdown', e => {
+  ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  iso.setPointerCapture(e.pointerId);
+  pinchDist = ptrs.size === 2 ? ptrDist() : 0;
 });
-iso.addEventListener('pointerup', () => { drag = null; });
-iso.addEventListener('pointercancel', () => { drag = null; });
+iso.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size === 1) moveCam(-dx * 0.01, dy * 0.01, 1);
+  else if (ptrs.size === 2) {
+    const d = ptrDist();
+    if (pinchDist && d) moveCam(0, 0, pinchDist / d);
+    pinchDist = d;
+  }
+});
+const ptrEnd = e => { ptrs.delete(e.pointerId); pinchDist = ptrs.size === 2 ? ptrDist() : 0; };
+iso.addEventListener('pointerup', ptrEnd);
+iso.addEventListener('pointercancel', ptrEnd);
 iso.addEventListener('wheel', e => { e.preventDefault(); moveCam(0, 0, Math.exp(e.deltaY * 0.001)); }, {passive: false});
 // Default camera, pulled back to fit the board size.
 const resetCam = () => { Object.assign(cam, DEFAULT_CAM, {dist: DEFAULT_CAM.dist * Math.max(NX, NY) / 10}); renderIso(); };
@@ -1446,6 +1605,8 @@ function render() {
   document.getElementById('flipBtn').classList.toggle('active', selectedId === null && state.flip);
   document.getElementById('railBtn').classList.toggle('active', sel ? isBuilding(sel) && sel.rail : state.rail);
   document.getElementById('overBtn').classList.toggle('active', overwrite);
+  document.getElementById('selBtn').classList.toggle('active', !state.shape);
+  document.getElementById('delBtn').disabled = !sel;
 
   const floorsEl = document.getElementById('floors');
   floorsEl.innerHTML = '';
@@ -1564,22 +1725,91 @@ function cellFromEvent(e) {
   return x >= 0 && y >= 0 && x < NX && y < NY ? {x, y} : null;
 }
 
-board.addEventListener('mousemove', e => {
+// Hover preview is mouse-only; touch has no hover, so a tap acts straight away.
+let lastPointer = 'mouse', tapFlash;
+board.addEventListener('pointerdown', e => { lastPointer = e.pointerType; });
+board.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
   const c = cellFromEvent(e);
   if ((c && hover && c.x === hover.x && c.y === hover.y) || (!c && !hover)) return;
   hover = c; render();
 });
-board.addEventListener('mouseleave', () => { hover = null; render(); });
-board.addEventListener('click', e => {
-  const c = cellFromEvent(e);
-  if (!c) return;
+board.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { hover = null; render(); } });
+function tapCell(c) {
   hover = c;
   if (overwrite && state.shape) { place(); return; }
   const hit = occupancy(state.pieces, state.floor).get(key(c.x, c.y));
   if (hit) { selectedId = hit.id === selectedId ? null : hit.id; setStatus(''); render(); return; }
   if (selectedId !== null) { selectedId = null; render(); return; }
   place();
+}
+board.addEventListener('click', e => {
+  const c = cellFromEvent(e);
+  if (!c) return;
+  if (lastPointer === 'mouse') { tapCell(c); return; }
+  setStatus('');
+  tapCell(c);
+  // Briefly show the red ghost where a touch placement failed, then drop the hover.
+  const failed = document.getElementById('status').classList.contains('err');
+  hover = failed ? c : null;
+  render();
+  clearTimeout(tapFlash);
+  if (failed) tapFlash = setTimeout(() => { hover = null; render(); }, 700);
 });
+
+// Phone board zoom: pinch on the board or the + / - buttons, keeping the view centred.
+const boardScroll = document.getElementById('boardScroll');
+function setZoom(z) {
+  const el = boardScroll, old = CELL;
+  const cx = (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth, cy = (el.scrollTop + el.clientHeight / 2) / el.scrollHeight;
+  boardZoom = Math.max(.5, Math.min(3, z));
+  fitCell();
+  if (CELL === old) return;
+  render();
+  el.scrollLeft = cx * el.scrollWidth - el.clientWidth / 2;
+  el.scrollTop = cy * el.scrollHeight - el.clientHeight / 2;
+}
+document.getElementById('zoomIn').onclick = () => setZoom(boardZoom * 1.25);
+document.getElementById('zoomOut').onclick = () => setZoom(boardZoom / 1.25);
+document.getElementById('zoomFit').onclick = () => setZoom(1);
+let boardPinch = null, pinchFrame = 0;
+const touchDist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+boardScroll.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) boardPinch = {d: touchDist(e.touches), z: boardZoom};
+}, {passive: true});
+boardScroll.addEventListener('touchmove', e => {
+  if (!boardPinch || e.touches.length !== 2) return;
+  e.preventDefault();
+  const z = boardPinch.z * touchDist(e.touches) / boardPinch.d;
+  cancelAnimationFrame(pinchFrame);
+  pinchFrame = requestAnimationFrame(() => setZoom(z));
+}, {passive: false});
+boardScroll.addEventListener('touchend', e => { if (e.touches.length < 2) boardPinch = null; });
+// Refit when the board area changes size (rotation, address bar, switching views).
+new ResizeObserver(() => { const old = CELL; fitCell(); if (CELL !== old) render(); }).observe(boardScroll);
+PHONE_MQ.addEventListener('change', () => { setMenu(false); fitCell(); render(); });
+
+// Phone app bar: Plan / 3D switch and the overflow menu.
+const header = document.querySelector('header'), menuBtn = document.getElementById('menuBtn');
+function setMenu(open) {
+  header.classList.toggle('menu-open', open);
+  menuBtn.setAttribute('aria-expanded', open);
+}
+menuBtn.onclick = () => setMenu(!header.classList.contains('menu-open'));
+document.addEventListener('click', e => { if (!e.target.closest('#menuBtn')) setMenu(false); });
+function setView(v) {
+  document.body.classList.toggle('view-3d', v === '3d');
+  document.querySelectorAll('#viewTabs button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+}
+document.querySelectorAll('#viewTabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
+setView('plan');
+document.getElementById('helpBtn').onclick = () => document.getElementById('helpDlg').showModal();
+document.getElementById('selBtn').onclick = () => {
+  state.shape = null; selectedId = null;
+  setStatus('Holding nothing: tap pieces to select them');
+  save(); render();
+};
+document.getElementById('delBtn').onclick = () => { if (selectedId !== null) deletePiece(selectedId); };
 board.addEventListener('contextmenu', e => {
   e.preventDefault();
   const c = cellFromEvent(e);
@@ -1632,6 +1862,7 @@ controlsPanel.addEventListener('toggle', saveUi);
 document.querySelectorAll('#tallyMode button').forEach(b => b.onclick = () => { tallyMode = b.dataset.mode; saveUi(); renderTally(); });
 
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && header.classList.contains('menu-open')) { setMenu(false); return; }
   if (document.querySelector('dialog[open]')) return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
