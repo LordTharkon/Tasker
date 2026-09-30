@@ -269,6 +269,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
         <li>Click the highlighted palette piece again (or Esc) to put it down and just select</li>
         <li>Esc deselects</li>
         <li>Upper floors may overhang, but need at least one building cube underneath</li>
+        <li>Balconies (floor 2 and up) hang off a building on the same floor, over open space</li>
       </ul>
     </details>
   </div>
@@ -321,6 +322,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <li>Pinch or use + / &minus; to zoom the plan, drag to scroll big boards</li>
       <li>Switch to 3D at the top: drag to orbit, pinch to zoom, double-tap to reset</li>
       <li>Upper floors may overhang, but need at least one building cube underneath</li>
+      <li>Balconies (floor 2 and up) hang off a building on the same floor, over open space</li>
     </ul>
   </div>
 </dialog>
@@ -387,7 +389,7 @@ const C = {
   wallA: '#35383c', wallB: '#2b2e31', edge: '#141618', window: '#9aa0a6', rail: '#a3a8ad',
   trunk: '#5b4128', pine: '#2f5a34', leaf: '#4d7a3a', bush: '#557f3e', rock: '#7d7f80',
   crate: '#9a7747', crateFrame: '#6b4e2c', crateEdge: '#4f3a1f', concrete: '#a19f98', sand: '#b39c6c',
-  wall: '#8d8779',
+  wall: '#8d8779', deck: '#6a6e74', grate: '#4c4f54',
 };
 // Terrain layouts in cell-local units (centre = 0,0), shared by the 2D icons and 3D models.
 const CRATES = [[-.15, -.13, 0, .44, .1], [.24, .25, 0, .32, -.3], [-.15, -.13, .451, .3, .6]]; // u, v, h, size, yaw
@@ -412,6 +414,11 @@ const SHAPES = {
   s4:        {kind: 'building', name: 'S 4',       cells: [[1,0],[2,0],[0,1],[1,1]]},
   round1:    {kind: 'building', name: 'Round',     cells: [[0,0]], round: true},
   round2:    {kind: 'building', name: 'Round 2x2', cells: [[0,0],[1,0],[0,1],[1,1]], round: true},
+  // Balconies hang off a building wall on the same floor: a deck at floor level over open space.
+  balcony:   {kind: 'building', name: 'Balcony',   cells: [[0,0]], balcony: true},
+  balcony2:  {kind: 'building', name: 'Balcony 2', cells: [[0,0],[1,0]], balcony: true},
+  balcony3:  {kind: 'building', name: 'Balcony 3', cells: [[0,0],[1,0],[2,0]], balcony: true},
+  balconyL:  {kind: 'building', name: 'Balcony L', cells: [[0,0],[0,1],[1,1]], balcony: true},
   pine:      {kind: 'terrain',  name: 'Pine',      cells: [[0,0]]},
   tree:      {kind: 'terrain',  name: 'Tree',      cells: [[0,0]]},
   bush:      {kind: 'terrain',  name: 'Bush',      cells: [[0,0]]},
@@ -426,7 +433,13 @@ const SHAPES = {
   wall:      {kind: 'terrain',  name: 'Wall',      cells: [[0,0]], wall: 1},
   halfwall:  {kind: 'terrain',  name: 'Half wall', cells: [[0,0]], wall: .5},
 };
-const isBuilding = p => SHAPES[p.shape].kind === 'building';
+// isBuilding: container cubes (square or round) that hold up floors above and carry balconies.
+// hasRail: anything in the Buildings palette, which includes balconies.
+const isBalcony = p => !!SHAPES[p.shape].balcony;
+const hasRail = p => SHAPES[p.shape].kind === 'building';
+const isBuilding = p => hasRail(p) && !isBalcony(p);
+const cubeCount = p => isBuilding(p) && !SHAPES[p.shape].round ? SHAPES[p.shape].cells.length : 0;
+const NEIGHBOURS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 // Scene look: ground surface, backdrop behind the 3D view, and what surrounds the board.
 const GROUNDS = {
@@ -506,6 +519,15 @@ function validate(list) {
     }
   }
   for (const p of list) {
+    if (isBalcony(p)) {
+      const cells = pieceCells(p);
+      if (p.floor === 0) return 'Balconies go on floor 2 or higher';
+      if (cells.some(([x, y]) => bld[p.floor - 1].has(key(x, y))))
+        return 'A balcony needs open space below it, not a roof';
+      if (!cells.some(([x, y]) => NEIGHBOURS.some(([dx, dy]) => bld[p.floor].has(key(x + dx, y + dy)))))
+        return `A balcony on floor ${p.floor + 1} needs a building on the same floor to hang off`;
+      continue;
+    }
     if (p.floor === 0) continue;
     if (!pieceCells(p).some(([x, y]) => bld[p.floor - 1].has(key(x, y))))
       return `A piece on floor ${p.floor + 1} would be floating (needs at least one building cube underneath)`;
@@ -573,7 +595,7 @@ function deletePiece(id) {
   const p = byId(id);
   if (!p) return;
   const list = state.pieces.filter(q => q.id !== id);
-  if (validate(list)) { setStatus('Can\'t delete: something above would be left floating', true); return; }
+  if (validate(list)) { setStatus('Can\'t delete: something above or a balcony would be left unsupported', true); return; }
   tryCommit(list, `Deleted ${SHAPES[p.shape].name}`);
 }
 
@@ -587,7 +609,7 @@ function flip() {
 }
 function toggleRail() {
   const sel = byId(selectedId);
-  if (sel && !isBuilding(sel)) { setStatus('Terrain has no railings'); return; }
+  if (sel && !hasRail(sel)) { setStatus('Terrain has no railings'); return; }
   if (sel) transformSelected(p => p.rail = !p.rail, sel.rail ? 'Railings off' : 'Railings on');
   else { state.rail = !state.rail; save(); render(); }
 }
@@ -811,6 +833,38 @@ function drawRound(ctx, cells, ox, oy, cell, rail) {
   ctx.strokeStyle = C.rail; ctx.lineWidth = t; ctx.stroke();
 }
 
+// Balcony deck: metal grating, a dark bracket strip along the wall it hangs off, railings on the open sides.
+// mount(x, y) says a building cube is there; joined(x, y) says another balcony cell is (they form one walkway).
+function drawBalcony(ctx, cells, set, ox, oy, cell, rail, mount, joined) {
+  const t = Math.max(1.5, cell * .1), n = 5;
+  for (const [x, y] of cells) {
+    const X = ox + x * cell, Y = oy + y * cell;
+    ctx.fillStyle = C.deck;
+    ctx.fillRect(X, Y, cell, cell);
+    ctx.strokeStyle = C.grate;
+    ctx.lineWidth = Math.max(0.5, cell / 48);
+    ctx.beginPath();
+    for (let i = 1; i < n; i++) {
+      ctx.moveTo(X, Y + cell * i / n); ctx.lineTo(X + cell, Y + cell * i / n);
+      ctx.moveTo(X + cell * i / n, Y); ctx.lineTo(X + cell * i / n, Y + cell);
+    }
+    ctx.stroke();
+  }
+  for (const [x, y] of cells) {
+    const X = ox + x * cell, Y = oy + y * cell;
+    NEIGHBOURS.forEach(([dx, dy]) => {
+      const nx = x + dx, ny = y + dy;
+      if (set.has(key(nx, ny)) || joined(nx, ny)) return;
+      const isWall = mount(nx, ny);
+      if (!isWall && !rail) return;
+      ctx.fillStyle = isWall ? C.edge : C.rail;
+      const w = isWall ? t * .8 : t;
+      if (dy) ctx.fillRect(X, dy < 0 ? Y : Y + cell - w, cell, w);
+      else ctx.fillRect(dx < 0 ? X : X + cell - w, Y, w, cell);
+    });
+  }
+}
+
 // Wall pieces on one floor: cell key -> axis (0 runs along columns, 1 along rows).
 const wallMap = (list, floor) =>
   new Map(list.filter(p => p.floor === floor && SHAPES[p.shape].wall).map(p => [key(p.x, p.y), p.rot % 2]));
@@ -949,7 +1003,23 @@ function drawTerrainCell(ctx, p, x, y, set, ox, oy, s, walls) {
 
 function drawPiece(ctx, p, cells, ox, oy, cell, outline, width, walls) {
   const set = new Set(cells.map(([x, y]) => key(x, y))), s = SHAPES[p.shape];
-  if (s.kind === 'building') {
+  if (s.balcony) {
+    let mount, joined;
+    if (p.floor == null) {
+      // Palette icon: pretend the building sits above and in the empty part of the bounding box.
+      const mw = Math.max(...cells.map(c => c[0])) + 1, mh = Math.max(...cells.map(c => c[1])) + 1;
+      mount = (x, y) => y < 0 || (y < mh && x >= 0 && x < mw);
+      joined = () => false;
+    } else {
+      const blds = occupancy(state.pieces, p.floor, true);
+      const decks = new Set(state.pieces.filter(q => q.floor === p.floor && isBalcony(q) && q.id !== p.id)
+        .flatMap(q => pieceCells(q).map(([x, y]) => key(x, y))));
+      mount = (x, y) => blds.has(key(x, y));
+      joined = (x, y) => decks.has(key(x, y));
+    }
+    drawBalcony(ctx, cells, set, ox, oy, cell, p.rail, mount, joined);
+    outline = outline || C.edge;
+  } else if (s.kind === 'building') {
     if (s.round) drawRound(ctx, cells, ox, oy, cell, p.rail);
     else drawBuilding(ctx, cells, set, ox, oy, cell, p.rail);
     outline = outline || C.edge;
@@ -1445,15 +1515,53 @@ function buildScene(fadeAbove) {
     roundModel(M, p, A, any, stacked);
   }
 
+  const decks = new Set();
+  for (const p of state.pieces) if (isBalcony(p)) for (const [x, y] of pieceCells(p)) decks.add(`${x},${y},${p.floor}`);
+  for (const p of state.pieces) {
+    if (!isBalcony(p)) continue;
+    const {M, A} = layer(p.floor);
+    balconyModel(M, p, A, any, decks);
+  }
+
   const walls = [];
   for (const p of state.pieces) {
-    if (isBuilding(p)) continue;
+    if (hasRail(p)) continue;
     const {M, A} = layer(p.floor);
     const cells = pieceCells(p), set = new Set(cells.map(([x, y]) => key(x, y)));
     walls[p.floor] = walls[p.floor] || wallMap(state.pieces, p.floor);
     for (const [x, y] of cells) terrainModel(M, p, x, y, set, A, walls[p.floor]);
   }
   return {solid, faded};
+}
+
+// Balcony: a thin grated deck at floor level, gusset brackets under the wall side (when there is
+// wall below to bolt them to) and railings on the open sides. `any` holds building cubes, `decks` balcony cells.
+function balconyModel(M, p, A, any, decks) {
+  const col = hex => rgba(hex, A), t = M.tri, f = p.floor, h = f, T = .06;
+  const deck = col(C.deck), grate = col(C.grate), edge = col(C.edge), rc = col(C.rail);
+  const own = new Set(pieceCells(p).map(([x, y]) => key(x, y)));
+  const W = (a, b, c) => [a, b, c];
+  for (const [x, y] of pieceCells(p)) {
+    cuboid(t, W, x, h - T, y, x + 1, h, y + 1, deck);
+    quad(t, [x, h - T, y], [x + 1, h - T, y], [x + 1, h - T, y + 1], [x, h - T, y + 1], edge);
+    for (let i = 1; i < 5; i++) {
+      seg(M.line, [x, h + .002, y + i / 5], [x + 1, h + .002, y + i / 5], grate);
+      seg(M.line, [x + i / 5, h + .002, y], [x + i / 5, h + .002, y + 1], grate);
+    }
+    for (const s of SIDES) {
+      const nx = x + s.dx, ny = y + s.dy;
+      if (own.has(key(nx, ny)) || decks.has(`${nx},${ny},${f}`)) continue;
+      const ax = x + s.a[0], ay = y + s.a[1], bx = x + s.b[0], by = y + s.b[1];
+      // Point u along this edge, `inw` in from it towards the cell centre.
+      const E = (u, hh, inw) => [ax + (bx - ax) * u - s.dx * inw, hh, ay + (by - ay) * u - s.dy * inw];
+      seg(M.line, E(0, h + .003, 0), E(1, h + .003, 0), edge);
+      seg(M.line, E(0, h - T, -.003), E(1, h - T, -.003), edge);
+      if (any.has(`${nx},${ny},${f}`)) {
+        if (!any.has(`${nx},${ny},${f - 1}`)) continue;
+        for (const u of [.2, .8]) quad(t, E(u, h - T, 0), E(u, h - .42, 0), E(u, h - T, .6), E(u, h - T, .6), deck);
+      } else if (p.rail) railing(t, ax, ay, bx, by, -s.dx, -s.dy, h, rc);
+    }
+  }
 }
 
 function railing(m, ax, ay, bx, by, ix, iy, h, col) {
@@ -1613,7 +1721,7 @@ function render() {
     b.classList.toggle('active', b.dataset.shape === state.shape && selectedId === null);
   });
   document.getElementById('flipBtn').classList.toggle('active', selectedId === null && state.flip);
-  document.getElementById('railBtn').classList.toggle('active', sel ? isBuilding(sel) && sel.rail : state.rail);
+  document.getElementById('railBtn').classList.toggle('active', sel ? hasRail(sel) && sel.rail : state.rail);
   document.getElementById('overBtn').classList.toggle('active', overwrite);
   document.getElementById('selBtn').classList.toggle('active', !state.shape);
   document.getElementById('delBtn').disabled = !sel;
@@ -1641,8 +1749,8 @@ let tallyMode = 'floor';
 function renderTally() {
   const f = state.floor, here = p => p.floor === f, showUnused = document.getElementById('tallyUnused').checked;
   const count = (list, fn) => list.reduce((n, p) => n + fn(p), 0);
-  const blds = state.pieces.filter(isBuilding), terr = state.pieces.filter(p => !isBuilding(p));
-  const cubes = p => SHAPES[p.shape].round ? 0 : SHAPES[p.shape].cells.length;
+  const blds = state.pieces.filter(hasRail), terr = state.pieces.filter(p => !hasRail(p));
+  const cubes = cubeCount;
   const all = tallyMode === 'all';
   document.querySelectorAll('#tallyMode button').forEach(b => b.classList.toggle('active', b.dataset.mode === tallyMode));
   const stat = (label, list, fn = () => 1) => {
@@ -2006,8 +2114,8 @@ document.getElementById('exportPng').onclick = () => {
   const ctx = cv.getContext('2d');
   ctx.fillStyle = '#1b1d20'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#e6e6e6'; ctx.font = 'bold 18px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  const blds = state.pieces.filter(isBuilding);
-  const cubes = blds.reduce((n, p) => n + SHAPES[p.shape].cells.length, 0);
+  const blds = state.pieces.filter(hasRail);
+  const cubes = blds.reduce((n, p) => n + cubeCount(p), 0);
   ctx.fillText(`Tabletop Terrain Planner - ${NX}x${NY} board, ${blds.length} buildings, ${cubes} cubes, ${state.pieces.length - blds.length} terrain pieces`, 20, 16);
   if (view) { ctx.drawImage(iso, 20, 50, W - 40, view); renderIso(); }
   used.forEach((f, i) => {
