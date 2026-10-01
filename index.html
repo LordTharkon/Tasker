@@ -252,6 +252,12 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
         <button id="delBtn" class="mobile-only danger"><b class="ico">&#10005;&#xFE0E;</b>Delete</button>
       </div>
     </div>
+    <div class="panel" id="roofPanel" hidden>
+      <h2>Roof</h2>
+      <div class="swatches" id="roof-color"></div>
+      <div class="seg" id="roof-style"></div>
+      <div class="row"><button id="roofDamagedBtn">Damaged</button></div>
+    </div>
     <div class="panel" id="floorPanel">
       <h2>Floor</h2>
       <div id="floors"></div>
@@ -269,7 +275,8 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
         <li>Click the highlighted palette piece again (or Esc) to put it down and just select</li>
         <li>Esc deselects</li>
         <li>Upper floors may overhang, but need at least one building cube underneath</li>
-        <li>Balconies (floor 2 and up) hang off a building on the same floor, over open space</li>
+        <li>Balconies (floor 2 and up) hang off a building on the same floor, over open space, and turn to face its wall</li>
+        <li>Roof panels float freely over anything (or nothing) and can overhang a smaller building; select one to pick its color, style or damage</li>
       </ul>
     </details>
   </div>
@@ -322,7 +329,8 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <li>Pinch or use + / &minus; to zoom the plan, drag to scroll big boards</li>
       <li>Switch to 3D at the top: drag to orbit, pinch to zoom, double-tap to reset</li>
       <li>Upper floors may overhang, but need at least one building cube underneath</li>
-      <li>Balconies (floor 2 and up) hang off a building on the same floor, over open space</li>
+      <li>Balconies (floor 2 and up) hang off a building on the same floor, over open space, and turn to face its wall</li>
+      <li>Roof panels float freely over anything (or nothing) and can overhang a smaller building; select one to pick its color, style or damage</li>
     </ul>
   </div>
 </dialog>
@@ -402,6 +410,11 @@ const sandbagCornerRow = li => li % 2
   : [[.02, 0, .31, false], [.34, 0, .31, false], [0, .32, .34, true]];
 // Barricade centre lines (cell-local u, v). They stop just short of the cell edge, leaving a thin joint line.
 const BARRICADE_PATHS = {barricade: [[-.495, 0], [.495, 0]], barricadeCorner: [[.495, 0], [0, 0], [0, .495]]};
+// Balconies hang off a building wall on the same floor: a deck BD cells deep at floor level, over open space.
+// deck: outline in shape-local cell units, star-shaped from its first point; walls: the edges against the building.
+const BD = 1 / 3;
+const balconyStrip = n => ({cells: Array.from({length: n}, (_, i) => [i, 0]), balcony: true,
+  deck: [[0, 0], [n, 0], [n, BD], [0, BD]], walls: [0]});
 const SHAPES = {
   single:    {kind: 'building', name: 'Single',    cells: [[0,0]]},
   line2:     {kind: 'building', name: 'Line 2',    cells: [[0,0],[1,0]]},
@@ -414,11 +427,20 @@ const SHAPES = {
   s4:        {kind: 'building', name: 'S 4',       cells: [[1,0],[2,0],[0,1],[1,1]]},
   round1:    {kind: 'building', name: 'Round',     cells: [[0,0]], round: true},
   round2:    {kind: 'building', name: 'Round 2x2', cells: [[0,0],[1,0],[0,1],[1,1]], round: true},
-  // Balconies hang off a building wall on the same floor: a deck at floor level over open space.
-  balcony:   {kind: 'building', name: 'Balcony',   cells: [[0,0]], balcony: true},
-  balcony2:  {kind: 'building', name: 'Balcony 2', cells: [[0,0],[1,0]], balcony: true},
-  balcony3:  {kind: 'building', name: 'Balcony 3', cells: [[0,0],[1,0],[2,0]], balcony: true},
-  balconyL:  {kind: 'building', name: 'Balcony L', cells: [[0,0],[0,1],[1,1]], balcony: true},
+  balcony:   {kind: 'building', name: 'Balcony',   ...balconyStrip(1)},
+  balcony2:  {kind: 'building', name: 'Balcony 2', ...balconyStrip(2)},
+  balcony3:  {kind: 'building', name: 'Balcony 3', ...balconyStrip(3)},
+  // Wraps round the outside corner of a building sitting at cell (1, 0).
+  balconyL:  {kind: 'building', name: 'Balcony L', cells: [[0,0],[0,1],[1,1]], balcony: true,
+    deck: [[1, 1], [2, 1], [2, 1 + BD], [1 - BD, 1 + BD], [1 - BD, 0], [1, 0]], walls: [0, 5]},
+  // Roof panels: a free-floating roof cap, placed and sized independently of whatever's underneath
+  // (or nothing at all), so it can overhang a smaller building like a carport or covered porch.
+  roofPanel1:      {kind: 'building', name: 'Roof Panel',    cells: [[0,0]], roofPanel: true},
+  roofPanel2:      {kind: 'building', name: 'Roof Panel 2',  cells: [[0,0],[1,0]], roofPanel: true},
+  roofPanel3:      {kind: 'building', name: 'Roof Panel 3',  cells: [[0,0],[1,0],[2,0]], roofPanel: true},
+  roofPanel4:      {kind: 'building', name: 'Roof Panel 4',  cells: [[0,0],[1,0],[2,0],[3,0]], roofPanel: true},
+  roofPanelSquare: {kind: 'building', name: 'Roof Panel 2x2', cells: [[0,0],[1,0],[0,1],[1,1]], roofPanel: true},
+  roofPanelL:      {kind: 'building', name: 'Roof Panel L',  cells: [[0,0],[0,1],[1,1]], roofPanel: true},
   pine:      {kind: 'terrain',  name: 'Pine',      cells: [[0,0]]},
   tree:      {kind: 'terrain',  name: 'Tree',      cells: [[0,0]]},
   bush:      {kind: 'terrain',  name: 'Bush',      cells: [[0,0]]},
@@ -434,12 +456,12 @@ const SHAPES = {
   halfwall:  {kind: 'terrain',  name: 'Half wall', cells: [[0,0]], wall: .5},
 };
 // isBuilding: container cubes (square or round) that hold up floors above and carry balconies.
-// hasRail: anything in the Buildings palette, which includes balconies.
+// hasRail: anything in the Buildings palette, which includes balconies and roof panels.
 const isBalcony = p => !!SHAPES[p.shape].balcony;
+const isRoofPanel = p => !!SHAPES[p.shape].roofPanel;
 const hasRail = p => SHAPES[p.shape].kind === 'building';
-const isBuilding = p => hasRail(p) && !isBalcony(p);
+const isBuilding = p => hasRail(p) && !isBalcony(p) && !isRoofPanel(p);
 const cubeCount = p => isBuilding(p) && !SHAPES[p.shape].round ? SHAPES[p.shape].cells.length : 0;
-const NEIGHBOURS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 // Scene look: ground surface, backdrop behind the 3D view, and what surrounds the board.
 const GROUNDS = {
@@ -454,6 +476,18 @@ const GROUNDS = {
 // Dark grounds get lighter roofs so buildings stand out from the surface.
 const roofCol = () => G().lightRoof ? '#7a8087' : C.roof;
 const slatCol = () => G().lightRoof ? '#666b71' : C.slat;
+// Per-piece roof look: color overrides roofCol() when set, style changes the roof's geometry.
+const ROOF_STYLES = ['flat', 'gabled', 'sloped', 'parapet'];
+const ROOF_STYLE_LABELS = {flat: 'Flat', gabled: 'Gabled', sloped: 'Sloped', parapet: 'Parapet'};
+const ROOF_COLORS = [
+  [null, 'Default', 'linear-gradient(135deg, #45494e 50%, #7a8087 50%)'],
+  ['#6b3a2e', 'Rust', '#6b3a2e'],
+  ['#8a5a2e', 'Terracotta', '#8a5a2e'],
+  ['#4a5568', 'Slate', '#4a5568'],
+  ['#5b6b3f', 'Moss', '#5b6b3f'],
+  ['#3a3f47', 'Charcoal', '#3a3f47'],
+  ['#8f8f8f', 'Zinc', '#8f8f8f'],
+];
 const BACKDROPS = {
   studio:   {name: 'Studio',   top: '#26292d', bottom: '#26292d', tint: [1, 1, 1]},
   day:      {name: 'Daylight', top: '#4f8bc4', bottom: '#d3e3ee', tint: [1, 1, 1]},
@@ -498,12 +532,105 @@ const pieceCells = p => shapeCells(p.shape, p.rot, p.flip).map(([x, y]) => [x + 
 const key = (x, y) => x + ',' + y;
 const byId = id => state.pieces.find(p => p.id === id);
 
+// Balcony deck in board units: outline points plus each edge with its inward normal. Wall edges also list
+// the cells they hang off (`mounts`), one per cell of wall.
+function balconyGeom(p) {
+  const s = SHAPES[p.shape];
+  const tf = ([x, y]) => { if (p.flip) x = -x; for (let i = 0; i < p.rot; i++) [x, y] = [-y, x]; return [x, y]; };
+  // Same turn as shapeCells, shifted so the footprint's corner lands on the piece's anchor cell.
+  const corners = s.cells.flatMap(([x, y]) => [[x, y], [x + 1, y + 1]].map(tf));
+  const mx = Math.min(...corners.map(c => c[0])), my = Math.min(...corners.map(c => c[1]));
+  const pts = s.deck.map(q => { const [x, y] = tf(q); return [x - mx + (p.x || 0), y - my + (p.y || 0)]; });
+  let area = 0;
+  pts.forEach(([x, y], i) => { const [x2, y2] = pts[(i + 1) % pts.length]; area += x * y2 - x2 * y; });
+  const edges = pts.map((a, i) => {
+    const b = pts[(i + 1) % pts.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], inw = area > 0 ? [-d[1], d[0]] : [d[1], -d[0]];
+    const wall = s.walls.includes(i);
+    const mounts = wall ? Array.from({length: Math.round(len)}, (_, k) =>
+      [0, 1].map(j => Math.floor(a[j] + d[j] * (k + .5) - inw[j] * .5))) : [];
+    return {a, b, len, d, inw, wall, mounts};
+  });
+  return {pts, edges};
+}
+const balconyMounted = (p, blds) => balconyGeom(p).edges.some(e => e.mounts.some(([x, y]) => blds.has(key(x, y))));
+// Other ways to turn a piece on the same anchor cell, starting with the ones that keep a straight balcony's footprint.
+const balconyTurns = p => [p.flip, !p.flip].flatMap(flip => [0, 2, 1, 3].map(i => ({...p, flip, rot: (p.rot + i) % 4})));
+// Turn each balcony (keeping its footprint) so its wall side faces a building, e.g. for older saved layouts.
+function orientBalconies(list) {
+  const cellsKey = p => pieceCells(p).map(([x, y]) => key(x, y)).sort().join(' ');
+  return list.map(p => !isBalcony(p) ? p : balconyTurns(p).find(o =>
+    cellsKey(o) === cellsKey(p) && balconyMounted(o, occupancy(list, p.floor, true))) || p);
+}
+// Balconies that meet on one floor join into a single walkway. `skip` holds the railed edges ("id:edge")
+// that butt against another balcony: two balconies end to end along a wall, or two ends meeting at a
+// building's outside corner. For each corner, `patches` holds the square that fills the gap.
+function balconyJoins(list, floor) {
+  const ends = [], skip = new Set(), patches = [], occ = occupancy(list, floor);
+  for (const p of list) if (p.floor === floor && isBalcony(p))
+    balconyGeom(p).edges.forEach((e, i) => { if (!e.wall) ends.push({p, i, e}); });
+  const pk = q => q.map(v => Math.round(v * 3)).join(',');
+  const segs = new Map();
+  for (const o of ends) {
+    const k = [pk(o.e.a), pk(o.e.b)].sort().join('|');
+    if (!segs.has(k)) segs.set(k, []);
+    segs.get(k).push(o);
+  }
+  for (const g of segs.values()) if (g.length > 1) g.forEach(o => skip.add(o.p.id + ':' + o.i));
+  const short = ends.filter(o => Math.abs(o.e.len - BD) < 1e-6);
+  short.forEach((A, i) => short.slice(i + 1).forEach(B => {
+    if (A.p.id === B.p.id) return;
+    for (const [c, p1] of [[A.e.a, A.e.b], [A.e.b, A.e.a]]) for (const [c2, p2] of [[B.e.a, B.e.b], [B.e.b, B.e.a]]) {
+      if (pk(c) !== pk(c2)) continue;
+      // Each end must point away from the other balcony's deck, so the gap between them is an outside corner.
+      const u = [(p2[0] - c[0]) / BD, (p2[1] - c[1]) / BD], v = [(p1[0] - c[0]) / BD, (p1[1] - c[1]) / BD];
+      if (u[0] * A.e.inw[0] + u[1] * A.e.inw[1] > -.99 || v[0] * B.e.inw[0] + v[1] * B.e.inw[1] > -.99) continue;
+      const q = [p1[0] + p2[0] - c[0], p1[1] + p2[1] - c[1]];
+      if (occ.has(key(Math.floor((c[0] + q[0]) / 2), Math.floor((c[1] + q[1]) / 2)))) continue;
+      skip.add(A.p.id + ':' + A.i); skip.add(B.p.id + ':' + B.i);
+      patches.push({pts: [c, p1, q, p2], ids: [A.p.id, B.p.id], rail: A.p.rail || B.p.rail,
+        edges: [{a: p1, b: q, len: BD, d: u, inw: [-v[0], -v[1]]}, {a: q, b: p2, len: BD, d: [-v[0], -v[1]], inw: [-u[0], -u[1]]}]});
+    }
+  }));
+  return {skip, patches};
+}
+const NO_JOINS = {skip: new Set(), patches: []};
+// Grid lines at multiples of `step` inside an axis-aligned polygon, as [[x, y], [x, y]] pairs.
+function gridInside(pts, step) {
+  const out = [], eps = 1e-6;
+  for (const ax of [0, 1]) {
+    const o = 1 - ax, vals = pts.map(q => q[ax]);
+    for (let i = Math.ceil((Math.min(...vals) + eps) / step); i * step < Math.max(...vals) - eps; i++) {
+      const c = i * step, hits = [];
+      pts.forEach((a, j) => {
+        const b = pts[(j + 1) % pts.length];
+        if (Math.abs(a[o] - b[o]) < eps && Math.min(a[ax], b[ax]) - eps <= c && c < Math.max(a[ax], b[ax]) - eps) hits.push(a[o]);
+      });
+      hits.sort((m, n) => m - n);
+      for (let k = 0; k + 1 < hits.length; k += 2) out.push(ax ? [[hits[k], c], [hits[k + 1], c]] : [[c, hits[k]], [c, hits[k + 1]]]);
+    }
+  }
+  return out;
+}
+
 function occupancy(list, floor, buildingsOnly) {
   const m = new Map();
   for (const p of list)
     if (p.floor === floor && (!buildingsOnly || isBuilding(p)))
       for (const [x, y] of pieceCells(p)) m.set(key(x, y), p);
   return m;
+}
+// Like occupancy, but resolves a single cell to the topmost non-roof-panel piece there if any,
+// falling back to a roof panel only when nothing else occupies the cell (roof panels can freely
+// overlap other pieces, so they shouldn't hide them from clicks).
+function pieceAt(x, y, floor) {
+  let hit = null;
+  for (const p of state.pieces) {
+    if (p.floor !== floor || !pieceCells(p).some(([px, py]) => px === x && py === y)) continue;
+    if (!isRoofPanel(p)) return p;
+    hit = p;
+  }
+  return hit;
 }
 
 function validate(list) {
@@ -513,18 +640,21 @@ function validate(list) {
     if (p.floor < 0 || p.floor >= FLOORS) return 'Floor out of range';
     for (const [x, y] of pieceCells(p)) {
       if (x < 0 || y < 0 || x >= NX || y >= NY) return 'Doesn\'t fit on the board';
+      // Roof panels are purely visual: they never collide with anything and are never required as support.
+      if (isRoofPanel(p)) continue;
       if (occ[p.floor].has(key(x, y))) return 'Overlaps another piece';
       occ[p.floor].add(key(x, y));
       if (isBuilding(p)) bld[p.floor].add(key(x, y));
     }
   }
   for (const p of list) {
+    if (isRoofPanel(p)) continue;
     if (isBalcony(p)) {
       const cells = pieceCells(p);
       if (p.floor === 0) return 'Balconies go on floor 2 or higher';
       if (cells.some(([x, y]) => bld[p.floor - 1].has(key(x, y))))
         return 'A balcony needs open space below it, not a roof';
-      if (!cells.some(([x, y]) => NEIGHBOURS.some(([dx, dy]) => bld[p.floor].has(key(x + dx, y + dy)))))
+      if (!balconyMounted(p, bld[p.floor]))
         return `A balcony on floor ${p.floor + 1} needs a building on the same floor to hang off`;
       continue;
     }
@@ -563,14 +693,25 @@ function undo() {
 
 function ghost() {
   if (!hover || selectedId !== null || !state.shape) return null;
-  if (!overwrite && occupancy(state.pieces, state.floor).has(key(hover.x, hover.y))) return null;
-  const p = {id: -1, shape: state.shape, rot: state.rot, flip: state.flip, rail: state.rail, x: hover.x, y: hover.y, floor: state.floor};
-  const cells = new Set(pieceCells(p).map(([x, y]) => key(x, y)));
-  const removed = overwrite
-    ? state.pieces.filter(q => q.floor === p.floor && pieceCells(q).some(([x, y]) => cells.has(key(x, y))))
-    : [];
-  const list = [...state.pieces.filter(q => !removed.includes(q)), p];
-  return {piece: p, list, removed, err: validate(list)};
+  // Roof panels can freely overlap anything, so they skip this check entirely; placing anything else
+  // is only blocked by a non-panel piece already on the cell (an existing roof panel doesn't block it).
+  if (!overwrite && !SHAPES[state.shape].roofPanel &&
+      occupancy(state.pieces.filter(q => !isRoofPanel(q)), state.floor).has(key(hover.x, hover.y))) return null;
+  const make = p => {
+    const cells = new Set(pieceCells(p).map(([x, y]) => key(x, y)));
+    const removed = overwrite
+      ? state.pieces.filter(q => q.floor === p.floor && pieceCells(q).some(([x, y]) => cells.has(key(x, y))))
+      : [];
+    const list = [...state.pieces.filter(q => !removed.includes(q)), p];
+    return {piece: p, list, removed, err: validate(list)};
+  };
+  const p = {id: -1, shape: state.shape, rot: state.rot, flip: state.flip, rail: state.rail,
+    roofColor: null, roofStyle: 'flat', roofDamaged: false, x: hover.x, y: hover.y, floor: state.floor};
+  const g = make(p);
+  // Balconies turn by themselves to put their wall side against a building.
+  if (g.err && isBalcony(p))
+    for (const o of balconyTurns(p).slice(1)) { const t = make(o); if (!t.err) return t; }
+  return g;
 }
 
 function place() {
@@ -643,7 +784,7 @@ function load() {
     const s = JSON.parse(localStorage.getItem(STORE));
     if (s && Array.isArray(s.pieces)) {
       if (s.board) setBoardSize(s.board.w, s.board.h);
-      const pieces = sanitize(s.pieces, 1);
+      const pieces = orientBalconies(sanitize(s.pieces, 1));
       if (!validate(pieces)) state.pieces = pieces;
       state.nextId = state.pieces.length + 1;
       if (SHAPES[s.shape] || s.shape === null) state.shape = s.shape;
@@ -659,6 +800,9 @@ function load() {
 function sanitize(arr, startId) {
   return arr.filter(p => p && SHAPES[p.shape]).map((p, i) => ({
     id: startId + i, shape: p.shape, rot: ((p.rot | 0) % 4 + 4) % 4, flip: !!p.flip, rail: p.rail !== false,
+    roofColor: typeof p.roofColor === 'string' ? p.roofColor : null,
+    roofStyle: ROOF_STYLES.includes(p.roofStyle) ? p.roofStyle : 'flat',
+    roofDamaged: !!p.roofDamaged,
     x: p.x | 0, y: p.y | 0, floor: p.floor | 0,
   }));
 }
@@ -793,19 +937,56 @@ function outlinePath(ctx, cells, set, ox, oy, cell) {
   }
 }
 
-function drawBuilding(ctx, cells, set, ox, oy, cell, rail) {
-  const slats = 6, t = Math.max(1.5, cell * 0.13);
+// One roof cell/cube top, in top-down 2D: a flat fill plus a style-specific line pattern (rotated/flipped
+// to match the piece), with a couple of seeded dark patches punched in when damaged.
+function drawRoofCell(ctx, X, Y, cell, style, color, damaged, rot, flip, seedX, seedY) {
+  ctx.fillStyle = color;
+  ctx.fillRect(X, Y, cell, cell);
+  ctx.save();
+  ctx.translate(X + cell / 2, Y + cell / 2);
+  ctx.rotate(rot * Math.PI / 2);
+  if (flip) ctx.scale(-1, 1);
+  const h = cell / 2;
+  ctx.strokeStyle = slatCol();
+  ctx.lineWidth = Math.max(0.5, cell / 40);
+  ctx.beginPath();
+  if (style === 'gabled') {
+    ctx.moveTo(0, -h); ctx.lineTo(0, h);
+    ctx.moveTo(-h, -h * .6); ctx.lineTo(0, -h);
+    ctx.moveTo(h, -h * .6); ctx.lineTo(0, -h);
+  } else if (style === 'sloped') {
+    ctx.moveTo(-h, -h * .6); ctx.lineTo(h, -h * .1);
+    ctx.moveTo(-h, h * .1); ctx.lineTo(h, h * .6);
+  } else if (style === 'parapet') {
+    const inset = cell * .12;
+    ctx.rect(-h + inset, -h + inset, cell - inset * 2, cell - inset * 2);
+  } else {
+    for (let i = 1; i < 6; i++) { ctx.moveTo(-h, -h + cell * i / 6); ctx.lineTo(h, -h + cell * i / 6); }
+  }
+  ctx.stroke();
+  ctx.restore();
+  if (!damaged) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  for (let i = 0; i < 2; i++) {
+    const r1 = rand(seedX, seedY, i * 3 + 1), r2 = rand(seedX, seedY, i * 3 + 2), r3 = rand(seedX, seedY, i * 3 + 3);
+    const cx = X + cell * (0.25 + 0.5 * r1), cy = Y + cell * (0.25 + 0.5 * r2), r = cell * (0.1 + 0.12 * r3);
+    ctx.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const a = k / 6 * Math.PI * 2, rr = r * (0.7 + 0.5 * rand(seedX, seedY, i * 10 + k));
+      ctx[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+function drawBuilding(ctx, cells, set, ox, oy, cell, p) {
+  const t = Math.max(1.5, cell * 0.13);
+  const color = p.roofColor || roofCol(), style = p.roofStyle || 'flat';
   for (const [x, y] of cells) {
     const X = ox + x * cell, Y = oy + y * cell;
-    ctx.fillStyle = roofCol();
-    ctx.fillRect(X, Y, cell, cell);
-    ctx.strokeStyle = slatCol();
-    ctx.lineWidth = Math.max(0.5, cell / 40);
-    ctx.beginPath();
-    for (let i = 1; i < slats; i++) { ctx.moveTo(X, Y + cell * i / slats); ctx.lineTo(X + cell, Y + cell * i / slats); }
-    ctx.stroke();
+    drawRoofCell(ctx, X, Y, cell, style, color, p.roofDamaged, p.rot, p.flip, x, y);
   }
-  if (!rail) return;
+  if (!p.rail) return;
   ctx.fillStyle = C.rail;
   for (const [x, y] of cells) {
     const X = ox + x * cell, Y = oy + y * cell;
@@ -816,53 +997,70 @@ function drawBuilding(ctx, cells, set, ox, oy, cell, rail) {
   }
 }
 
-function drawRound(ctx, cells, ox, oy, cell, rail) {
+function drawRound(ctx, cells, ox, oy, cell, p) {
   const g = roundGeom(cells), X = ox + g.cx * cell, Y = oy + g.cy * cell, R = g.r * cell;
-  const t = Math.max(1.5, cell * .13);
+  const t = Math.max(1.5, cell * .13), color = p.roofColor || roofCol(), style = p.roofStyle || 'flat';
   ctx.save();
   ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2);
-  ctx.fillStyle = roofCol(); ctx.fill();
+  ctx.fillStyle = color; ctx.fill();
   ctx.clip();
   ctx.strokeStyle = slatCol(); ctx.lineWidth = Math.max(0.5, cell / 40);
   ctx.beginPath();
-  for (let yy = Y - R + cell / 6; yy < Y + R; yy += cell / 6) { ctx.moveTo(X - R, yy); ctx.lineTo(X + R, yy); }
+  if (style === 'gabled') {
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; ctx.moveTo(X, Y); ctx.lineTo(X + Math.cos(a) * R, Y + Math.sin(a) * R); }
+  } else if (style === 'sloped') {
+    for (let i = 1; i <= 3; i++) { ctx.moveTo(X - R * .3 + R * i / 4, Y - R * .3); ctx.arc(X - R * .3, Y - R * .3, R * i / 4, 0, Math.PI * 2); }
+  } else if (style === 'parapet') {
+    ctx.moveTo(X + R * .78, Y); ctx.arc(X, Y, R * .78, 0, Math.PI * 2);
+  } else {
+    for (let yy = Y - R + cell / 6; yy < Y + R; yy += cell / 6) { ctx.moveTo(X - R, yy); ctx.lineTo(X + R, yy); }
+  }
   ctx.stroke();
+  if (p.roofDamaged) {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    for (let i = 0; i < 2; i++) {
+      const r1 = rand(g.cx, g.cy, i * 3 + 1), r2 = rand(g.cx, g.cy, i * 3 + 2), r3 = rand(g.cx, g.cy, i * 3 + 3);
+      const a = r1 * Math.PI * 2, dist = r2 * R * .6, hr = R * (0.15 + 0.15 * r3);
+      ctx.beginPath(); ctx.arc(X + Math.cos(a) * dist, Y + Math.sin(a) * dist, hr, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   ctx.restore();
-  if (!rail) return;
+  if (!p.rail) return;
   ctx.beginPath(); ctx.arc(X, Y, R - t / 2, 0, Math.PI * 2);
   ctx.strokeStyle = C.rail; ctx.lineWidth = t; ctx.stroke();
 }
 
-// Balcony deck: metal grating, a dark bracket strip along the wall it hangs off, railings on the open sides.
-// mount(x, y) says a building cube is there; joined(x, y) says another balcony cell is (they form one walkway).
-function drawBalcony(ctx, cells, set, ox, oy, cell, rail, mount, joined) {
-  const t = Math.max(1.5, cell * .1), n = 5;
-  for (const [x, y] of cells) {
-    const X = ox + x * cell, Y = oy + y * cell;
-    ctx.fillStyle = C.deck;
-    ctx.fillRect(X, Y, cell, cell);
-    ctx.strokeStyle = C.grate;
-    ctx.lineWidth = Math.max(0.5, cell / 48);
+// Roof panel: a free footprint of roof-only cells, independent of any building underneath.
+function drawRoofPanel(ctx, p, cells, ox, oy, cell) {
+  const color = p.roofColor || roofCol(), style = p.roofStyle || 'flat';
+  for (const [x, y] of cells) drawRoofCell(ctx, ox + x * cell, oy + y * cell, cell, style, color, p.roofDamaged, p.rot, p.flip, x, y);
+}
+
+// Balcony deck from above: metal grating, a dark strip along the wall side, railings along the open edges.
+// Edges in `skip` join another balcony and stay open. drawDeck also draws the corner patches that join balconies.
+function drawBalcony(ctx, p, ox, oy, cell, outline, width, skip = NO_JOINS.skip) {
+  const {pts, edges} = balconyGeom(p);
+  drawDeck(ctx, pts, edges.filter((e, i) => !skip.has(p.id + ':' + i)), p.rail, ox, oy, cell, outline || C.edge, width);
+}
+function drawDeck(ctx, pts, edges, rail, ox, oy, cell, outline, width) {
+  const t = Math.max(1.5, cell * .07);
+  const P = ([x, y]) => [ox + x * cell, oy + y * cell];
+  const poly = () => { ctx.beginPath(); pts.forEach((q, i) => ctx[i ? 'lineTo' : 'moveTo'](...P(q))); ctx.closePath(); };
+  poly(); ctx.fillStyle = C.deck; ctx.fill();
+  ctx.strokeStyle = C.grate; ctx.lineWidth = Math.max(0.5, cell / 48);
+  ctx.beginPath();
+  for (const [a, b] of gridInside(pts, 1 / 6)) { ctx.moveTo(...P(a)); ctx.lineTo(...P(b)); }
+  ctx.stroke();
+  for (const e of edges) {
+    if (!e.wall && !rail) continue;
+    const w = e.wall ? t * .8 : t, [ax, ay] = P(e.a), [bx, by] = P(e.b), [ix, iy] = e.inw;
+    ctx.fillStyle = e.wall ? C.edge : C.rail;
     ctx.beginPath();
-    for (let i = 1; i < n; i++) {
-      ctx.moveTo(X, Y + cell * i / n); ctx.lineTo(X + cell, Y + cell * i / n);
-      ctx.moveTo(X + cell * i / n, Y); ctx.lineTo(X + cell * i / n, Y + cell);
-    }
-    ctx.stroke();
+    ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(bx + ix * w, by + iy * w); ctx.lineTo(ax + ix * w, ay + iy * w);
+    ctx.fill();
   }
-  for (const [x, y] of cells) {
-    const X = ox + x * cell, Y = oy + y * cell;
-    NEIGHBOURS.forEach(([dx, dy]) => {
-      const nx = x + dx, ny = y + dy;
-      if (set.has(key(nx, ny)) || joined(nx, ny)) return;
-      const isWall = mount(nx, ny);
-      if (!isWall && !rail) return;
-      ctx.fillStyle = isWall ? C.edge : C.rail;
-      const w = isWall ? t * .8 : t;
-      if (dy) ctx.fillRect(X, dy < 0 ? Y : Y + cell - w, cell, w);
-      else ctx.fillRect(dx < 0 ? X : X + cell - w, Y, w, cell);
-    });
-  }
+  if (!outline) return;
+  poly(); ctx.strokeStyle = outline; ctx.lineWidth = width; ctx.stroke();
 }
 
 // Wall pieces on one floor: cell key -> axis (0 runs along columns, 1 along rows).
@@ -1001,27 +1199,15 @@ function drawTerrainCell(ctx, p, x, y, set, ox, oy, s, walls) {
   ctx.restore();
 }
 
-function drawPiece(ctx, p, cells, ox, oy, cell, outline, width, walls) {
+function drawPiece(ctx, p, cells, ox, oy, cell, outline, width, walls, joins = NO_JOINS) {
   const set = new Set(cells.map(([x, y]) => key(x, y))), s = SHAPES[p.shape];
-  if (s.balcony) {
-    let mount, joined;
-    if (p.floor == null) {
-      // Palette icon: pretend the building sits above and in the empty part of the bounding box.
-      const mw = Math.max(...cells.map(c => c[0])) + 1, mh = Math.max(...cells.map(c => c[1])) + 1;
-      mount = (x, y) => y < 0 || (y < mh && x >= 0 && x < mw);
-      joined = () => false;
-    } else {
-      const blds = occupancy(state.pieces, p.floor, true);
-      const decks = new Set(state.pieces.filter(q => q.floor === p.floor && isBalcony(q) && q.id !== p.id)
-        .flatMap(q => pieceCells(q).map(([x, y]) => key(x, y))));
-      mount = (x, y) => blds.has(key(x, y));
-      joined = (x, y) => decks.has(key(x, y));
-    }
-    drawBalcony(ctx, cells, set, ox, oy, cell, p.rail, mount, joined);
+  if (s.balcony) { drawBalcony(ctx, p, ox, oy, cell, outline, width, joins.skip); return; }
+  if (s.roofPanel) {
+    drawRoofPanel(ctx, p, cells, ox, oy, cell);
     outline = outline || C.edge;
   } else if (s.kind === 'building') {
-    if (s.round) drawRound(ctx, cells, ox, oy, cell, p.rail);
-    else drawBuilding(ctx, cells, set, ox, oy, cell, p.rail);
+    if (s.round) drawRound(ctx, cells, ox, oy, cell, p);
+    else drawBuilding(ctx, cells, set, ox, oy, cell, p);
     outline = outline || C.edge;
   } else {
     for (const [x, y] of cells) drawTerrainCell(ctx, p, x, y, set, ox, oy, cell, walls);
@@ -1054,12 +1240,22 @@ function drawTop(ctx, floor, cell, ox, oy, opts = {}) {
   const onFloor = state.pieces.filter(p => p.floor === floor);
   const sel = onFloor.find(p => p.id === opts.selectedId);
   const walls = wallMap(state.pieces, floor);
-  for (const p of onFloor) if (p !== sel) drawPiece(ctx, p, pieceCells(p), ox, oy, cell, null, 2, walls);
-  if (sel) drawPiece(ctx, sel, pieceCells(sel), ox, oy, cell, '#f0a830', 4, walls);
+  // Joins as they'd be with the piece being placed, so the preview shows balconies linking up.
+  const joins = balconyJoins(opts.ghost && !opts.ghost.err ? opts.ghost.list : state.pieces, floor);
+  // Roof panels paint last among non-selected pieces so they always sit visually on top of whatever
+  // they overhang, regardless of placement order.
+  for (const p of onFloor) if (p !== sel && !isRoofPanel(p)) drawPiece(ctx, p, pieceCells(p), ox, oy, cell, null, 2, walls, joins);
+  for (const pa of joins.patches) {
+    ctx.globalAlpha = pa.ids.includes(-1) ? 0.65 : 1;
+    drawDeck(ctx, pa.pts, pa.edges, pa.rail, ox, oy, cell);
+  }
+  ctx.globalAlpha = 1;
+  for (const p of onFloor) if (p !== sel && isRoofPanel(p)) drawPiece(ctx, p, pieceCells(p), ox, oy, cell, null, 2, walls, joins);
+  if (sel) drawPiece(ctx, sel, pieceCells(sel), ox, oy, cell, '#f0a830', 4, walls, joins);
   if (opts.ghost) {
     const g = opts.ghost, cells = pieceCells(g.piece);
     ctx.globalAlpha = 0.65;
-    drawPiece(ctx, g.piece, cells, ox, oy, cell, g.err ? '#e5484d' : '#fff', 2, walls);
+    drawPiece(ctx, g.piece, cells, ox, oy, cell, g.err ? '#e5484d' : '#fff', 2, walls, joins);
     ctx.globalAlpha = 1;
     if (g.err) {
       ctx.fillStyle = 'rgba(229,72,77,0.45)';
@@ -1337,8 +1533,79 @@ function terrainModel(M, p, x, y, set, A, walls) {
   }
 }
 
+// Rotates/flips a unit direction the same way shapeCells turns a piece, so a roof style's ridge/slope
+// axis follows the piece's own rot/flip.
+function roofTurn(dx, dy, rot, flip) {
+  if (flip) dx = -dx;
+  for (let i = 0; i < rot; i++) [dx, dy] = [-dy, dx];
+  return [dx, dy];
+}
+// One roof cube's cap, in 3D, at world x/y (cell origin) and height h: a style-specific shape, oriented
+// by rot/flip, with a couple of seeded dark decal patches laid on the surface when damaged.
+function roofCubeMesh(M, x, y, h, style, color, damaged, rot, flip, col) {
+  const c = col(color), sc = col(slatCol()), cx = x + .5, cy = y + .5;
+  const [dx, dy] = roofTurn(1, 0, rot, flip), [ux, uy] = roofTurn(0, 1, rot, flip);
+  const P = (a, b, hh) => [cx + (dx * a + ux * b) * .5, hh, cy + (dy * a + uy * b) * .5];
+  if (style === 'gabled') {
+    const ridge = h + .35;
+    quad(M.tri, P(-1, -1, h), P(1, -1, h), P(1, 0, ridge), P(-1, 0, ridge), c);
+    quad(M.tri, P(-1, 0, ridge), P(1, 0, ridge), P(1, 1, h), P(-1, 1, h), c);
+    seg(M.line, P(-1, 0, ridge + .002), P(1, 0, ridge + .002), sc);
+  } else if (style === 'sloped') {
+    quad(M.tri, P(-1, -1, h), P(1, -1, h), P(1, 1, h + .4), P(-1, 1, h + .4), c);
+  } else if (style === 'parapet') {
+    quad(M.tri, [x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1], c);
+    const pw = .06, ph = .16, pc = col(shade(color, .8)), Pb = (u, hh, v) => [x + u, h + hh, y + v];
+    cuboid(M.tri, Pb, pw, 0, pw, 1 - pw, ph, 1 - pw, pc);
+  } else {
+    quad(M.tri, [x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1], c);
+    for (let i = 1; i < 6; i++) seg(M.line, [x, h + .002, y + i / 6], [x + 1, h + .002, y + i / 6], sc);
+  }
+  if (!damaged) return;
+  const dark = col(shade(color, .35));
+  for (let i = 0; i < 2; i++) {
+    const r1 = rand(x, y, i * 3 + 1), r2 = rand(x, y, i * 3 + 2), r3 = rand(x, y, i * 3 + 3);
+    const a = (r1 - .5) * 1.8, b = (r2 - .5) * 1.8, s = .1 + .1 * r3;
+    const hh = (style === 'sloped' ? h + .4 * (b + 1) / 2 : style === 'gabled' ? h + .35 * (1 - Math.abs(b)) : h) + .01;
+    const [px, , pz] = P(a, b, 0);
+    quad(M.tri, [px - s, hh, pz - s], [px + s, hh, pz - s], [px + s, hh, pz + s], [px - s, hh, pz + s], dark);
+  }
+}
+// Round building's roof cap: flat (ring fan + slats), a shallow cone for gabled, an off-center cone
+// for sloped (direction follows rot/flip), or a flat cap with a low perimeter wall for parapet.
+function roundRoofMesh(M, g, h, style, color, damaged, rot, flip, col) {
+  const c = col(color), sc = col(slatCol());
+  const S = g.r > .6 ? 40 : 24;
+  const pt = (i, hh) => { const a = i / S * Math.PI * 2; return [g.cx + Math.cos(a) * g.r, hh, g.cy + Math.sin(a) * g.r]; };
+  const [ux, uy] = roofTurn(1, 0, rot, flip);
+  if (style === 'gabled') {
+    lathe(M.tri, (u, hh, v) => [g.cx + u, hh, g.cy + v], [[g.r, h], [0, h + g.r * .5]], S, c);
+  } else if (style === 'parapet') {
+    for (let i = 0; i < S; i++) quad(M.tri, [g.cx, h, g.cy], pt(i, h), pt(i + 1, h), pt(i + 1, h), c);
+    const ph = .16, pc = col(shade(color, .8));
+    lathe(M.tri, (u, hh, v) => [g.cx + u, hh, g.cy + v], [[g.r * .92, h], [g.r * .92, h + ph], [g.r * .8, h + ph], [g.r * .8, h]], S, pc);
+  } else if (style === 'sloped') {
+    const apex = [g.cx - ux * g.r * .3, h + g.r * .55, g.cy - uy * g.r * .3];
+    for (let i = 0; i < S; i++) quad(M.tri, apex, pt(i, h), pt(i + 1, h), pt(i + 1, h), c);
+  } else {
+    for (let i = 0; i < S; i++) quad(M.tri, [g.cx, h, g.cy], pt(i, h), pt(i + 1, h), pt(i + 1, h), c);
+    for (let zz = g.cy - g.r + 1 / 6; zz < g.cy + g.r; zz += 1 / 6) {
+      const hw = Math.sqrt(Math.max(0, g.r * g.r - (zz - g.cy) ** 2));
+      seg(M.line, [g.cx - hw, h + .002, zz], [g.cx + hw, h + .002, zz], sc);
+    }
+  }
+  if (!damaged) return;
+  const dark = col(shade(color, .35));
+  for (let i = 0; i < 2; i++) {
+    const r1 = rand(g.cx, g.cy, i * 3 + 1), r2 = rand(g.cx, g.cy, i * 3 + 2), r3 = rand(g.cx, g.cy, i * 3 + 3);
+    const a = r1 * Math.PI * 2, dist = r2 * g.r * .5, s = g.r * (.12 + .1 * r3);
+    const cx = g.cx + Math.cos(a) * dist, cz = g.cy + Math.sin(a) * dist, hh = h + .02;
+    quad(M.tri, [cx - s, hh, cz - s], [cx + s, hh, cz - s], [cx + s, hh, cz + s], [cx - s, hh, cz + s], dark);
+  }
+}
+
 // Round building (silo/tank style) for one floor: corrugated wall, windows, roof and ring railing.
-function roundModel(M, p, A, any, stacked) {
+function roundModel(M, p, A, any, stacked, covered) {
   const col = hex => rgba(hex, A), edge = col(C.edge), f = p.floor;
   const g = roundGeom(pieceCells(p)), cz = g.cy, r = g.r;
   const S = r > .6 ? 40 : 24;
@@ -1361,15 +1628,11 @@ function roundModel(M, p, A, any, stacked) {
       quad(M.tri, pt(ga, f + .28, .012), pt(gb, f + .28, .012), pt(gb, f + .68, .012), pt(ga, f + .68, .012), col(C.window));
     }
   }
-  const c0 = [g.cx, f, cz], c1 = [g.cx, f + 1, cz];
+  const c0 = [g.cx, f, cz];
   if (f > 0) for (let i = 0; i < S; i++) quad(M.tri, c0, pt(i, f), pt(i + 1, f), pt(i + 1, f), col(C.wallB));
-  if (stacked) return;
+  if (stacked || covered) return;
   const h = f + 1;
-  for (let i = 0; i < S; i++) quad(M.tri, c1, pt(i, h), pt(i + 1, h), pt(i + 1, h), col(roofCol()));
-  for (let zz = cz - r + 1 / 6; zz < cz + r; zz += 1 / 6) {
-    const hw = Math.sqrt(r * r - (zz - cz) ** 2);
-    seg(M.line, [g.cx - hw, h + .002, zz], [g.cx + hw, h + .002, zz], col(slatCol()));
-  }
+  roundRoofMesh(M, g, h, p.roofStyle || 'flat', p.roofColor || roofCol(), p.roofDamaged, p.rot, p.flip, col);
   if (!p.rail) return;
   const rc = col(C.rail), H = .3, post = .035 / (2 * Math.PI * (r - .05) / S);
   for (let i = 0; i < S; i++) {
@@ -1453,6 +1716,13 @@ function groundMesh() {
   return M;
 }
 
+// Roof panel: a free footprint of roof-only cells at the height of the floor they sit on, independent
+// of whatever (if anything) is underneath.
+function roofPanelMesh(M, p, col) {
+  const color = p.roofColor || roofCol(), style = p.roofStyle || 'flat', h = p.floor + 1;
+  for (const [x, y] of pieceCells(p)) roofCubeMesh(M, x, y, h, style, color, p.roofDamaged, p.rot, p.flip, col);
+}
+
 function buildScene(fadeAbove) {
   const solid = {tri: mesh(), line: mesh()}, faded = {tri: mesh(), line: mesh()};
   const layer = f => {
@@ -1467,6 +1737,10 @@ function buildScene(fadeAbove) {
     if (!SHAPES[p.shape].round) at.set(`${x},${y},${p.floor}`, p);
   }
   const get = (x, y, f) => at.get(`${x},${y},${f}`);
+
+  // Cells covered by a roof panel suppress the auto-roof on the floor just below them.
+  const roofPanelCovers = new Set();
+  for (const p of state.pieces) if (isRoofPanel(p)) for (const [x, y] of pieceCells(p)) roofPanelCovers.add(`${x},${y},${p.floor}`);
 
   for (const [k, p] of at) {
     const [x, y, f] = k.split(',').map(Number);
@@ -1495,10 +1769,9 @@ function buildScene(fadeAbove) {
     if (f > 0 && !get(x, y, f - 1))
       quad(M.tri, [x, f, y], [x + 1, f, y], [x + 1, f, y + 1], [x, f, y + 1], col(C.wallB));
 
-    if (!get(x, y, f + 1)) {
+    if (!get(x, y, f + 1) && !roofPanelCovers.has(`${x},${y},${f}`)) {
       const h = f + 1;
-      quad(M.tri, [x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1], col(roofCol()));
-      for (let i = 1; i < 6; i++) seg(M.line, [x, h + .002, y + i / 6], [x + 1, h + .002, y + i / 6], col(slatCol()));
+      roofCubeMesh(M, x, y, h, p.roofStyle || 'flat', p.roofColor || roofCol(), p.roofDamaged, p.rot, p.flip, col);
       for (const s of SIDES) {
         if (get(x + s.dx, y + s.dy, f) === p) continue;
         const ax = x + s.a[0], ay = y + s.a[1], bx = x + s.b[0], by = y + s.b[1];
@@ -1512,15 +1785,25 @@ function buildScene(fadeAbove) {
     if (!SHAPES[p.shape].round) continue;
     const {M, A} = layer(p.floor);
     const stacked = state.pieces.some(q => q.floor === p.floor + 1 && q.shape === p.shape && q.x === p.x && q.y === p.y);
-    roundModel(M, p, A, any, stacked);
+    const covered = pieceCells(p).every(([x, y]) => roofPanelCovers.has(`${x},${y},${p.floor}`));
+    roundModel(M, p, A, any, stacked, covered);
   }
 
-  const decks = new Set();
-  for (const p of state.pieces) if (isBalcony(p)) for (const [x, y] of pieceCells(p)) decks.add(`${x},${y},${p.floor}`);
+  for (const p of state.pieces) {
+    if (!isRoofPanel(p)) continue;
+    const {M, A} = layer(p.floor);
+    roofPanelMesh(M, p, hex => rgba(hex, A));
+  }
+
+  const joins = [];
   for (const p of state.pieces) {
     if (!isBalcony(p)) continue;
     const {M, A} = layer(p.floor);
-    balconyModel(M, p, A, any, decks);
+    if (!joins[p.floor]) {
+      joins[p.floor] = balconyJoins(state.pieces, p.floor);
+      for (const pa of joins[p.floor].patches) deckModel(M, pa.pts, pa.edges, pa.rail, p.floor, A, any);
+    }
+    balconyModel(M, p, A, any, joins[p.floor].skip);
   }
 
   const walls = [];
@@ -1534,38 +1817,41 @@ function buildScene(fadeAbove) {
   return {solid, faded};
 }
 
-// Balcony: a thin grated deck at floor level, gusset brackets under the wall side (when there is
-// wall below to bolt them to) and railings on the open sides. `any` holds building cubes, `decks` balcony cells.
-function balconyModel(M, p, A, any, decks) {
-  const col = hex => rgba(hex, A), t = M.tri, f = p.floor, h = f, T = .06;
+// Balcony: a thin grated deck at floor level, gusset brackets under the wall side (where there is
+// wall below to bolt them to) and railings along the open edges. `any` holds building cubes; edges in
+// `skip` join another balcony and stay open. deckModel also builds the corner patches that join balconies.
+function balconyModel(M, p, A, any, skip) {
+  const {pts, edges} = balconyGeom(p);
+  deckModel(M, pts, edges.filter((e, i) => !skip.has(p.id + ':' + i)), p.rail, p.floor, A, any);
+}
+function deckModel(M, pts, edges, rail, f, A, any) {
+  const col = hex => rgba(hex, A), t = M.tri, h = f, T = .06;
   const deck = col(C.deck), grate = col(C.grate), edge = col(C.edge), rc = col(C.rail);
-  const own = new Set(pieceCells(p).map(([x, y]) => key(x, y)));
-  const W = (a, b, c) => [a, b, c];
-  for (const [x, y] of pieceCells(p)) {
-    cuboid(t, W, x, h - T, y, x + 1, h, y + 1, deck);
-    quad(t, [x, h - T, y], [x + 1, h - T, y], [x + 1, h - T, y + 1], [x, h - T, y + 1], edge);
-    for (let i = 1; i < 5; i++) {
-      seg(M.line, [x, h + .002, y + i / 5], [x + 1, h + .002, y + i / 5], grate);
-      seg(M.line, [x + i / 5, h + .002, y], [x + i / 5, h + .002, y + 1], grate);
+  const V = ([x, z], y) => [x, y, z];
+  for (let i = 1; i < pts.length - 1; i++) {
+    quad(t, V(pts[0], h), V(pts[i], h), V(pts[i + 1], h), V(pts[i + 1], h), deck);
+    quad(t, V(pts[0], h - T), V(pts[i], h - T), V(pts[i + 1], h - T), V(pts[i + 1], h - T), edge);
+  }
+  for (const [a, b] of gridInside(pts, 1 / 6)) seg(M.line, V(a, h + .002), V(b, h + .002), grate);
+  for (const e of edges) {
+    // Point u along the edge, `inw` in from it.
+    const E = (u, y, inw = 0) => [e.a[0] + e.d[0] * u + e.inw[0] * inw, y, e.a[1] + e.d[1] * u + e.inw[1] * inw];
+    seg(M.line, E(0, h + .003), E(e.len, h + .003), edge);
+    if (e.wall) {
+      e.mounts.forEach(([mx, my], k) => {
+        if (!any.has(`${mx},${my},${f - 1}`)) return;
+        for (const u of [k + .25, k + .75]) quad(t, E(u, h - T), E(u, h - .32), E(u, h - T, BD * .85), E(u, h - T, BD * .85), deck);
+      });
+      continue;
     }
-    for (const s of SIDES) {
-      const nx = x + s.dx, ny = y + s.dy;
-      if (own.has(key(nx, ny)) || decks.has(`${nx},${ny},${f}`)) continue;
-      const ax = x + s.a[0], ay = y + s.a[1], bx = x + s.b[0], by = y + s.b[1];
-      // Point u along this edge, `inw` in from it towards the cell centre.
-      const E = (u, hh, inw) => [ax + (bx - ax) * u - s.dx * inw, hh, ay + (by - ay) * u - s.dy * inw];
-      seg(M.line, E(0, h + .003, 0), E(1, h + .003, 0), edge);
-      seg(M.line, E(0, h - T, -.003), E(1, h - T, -.003), edge);
-      if (any.has(`${nx},${ny},${f}`)) {
-        if (!any.has(`${nx},${ny},${f - 1}`)) continue;
-        for (const u of [.2, .8]) quad(t, E(u, h - T, 0), E(u, h - .42, 0), E(u, h - T, .6), E(u, h - T, .6), deck);
-      } else if (p.rail) railing(t, ax, ay, bx, by, -s.dx, -s.dy, h, rc);
-    }
+    quad(t, E(0, h - T), E(e.len, h - T), E(e.len, h), E(0, h), deck);
+    seg(M.line, E(0, h - T, -.003), E(e.len, h - T, -.003), edge);
+    if (rail) railing(t, ...e.a, ...e.b, ...e.inw, h, rc, Math.max(2, Math.round(e.len * 8)));
   }
 }
 
-function railing(m, ax, ay, bx, by, ix, iy, h, col) {
-  const off = 0.05, H = 0.3, w = 0.035, bars = 8;
+function railing(m, ax, ay, bx, by, ix, iy, h, col, bars = 8) {
+  const off = 0.05, H = 0.3, w = 0.035;
   const R = (t, z) => [ax + (bx - ax) * t + ix * off, z, ay + (by - ay) * t + iy * off];
   quad(m, R(0, h + H - 0.05), R(1, h + H - 0.05), R(1, h + H), R(0, h + H), col);
   for (let i = 0; i < bars; i++) {
@@ -1726,6 +2012,14 @@ function render() {
   document.getElementById('selBtn').classList.toggle('active', !state.shape);
   document.getElementById('delBtn').disabled = !sel;
 
+  const roofEligible = sel && (isBuilding(sel) || isRoofPanel(sel));
+  document.getElementById('roofPanel').hidden = !roofEligible;
+  if (roofEligible) {
+    document.querySelectorAll('#roof-color button').forEach(b => b.classList.toggle('active', b.dataset.v === String(sel.roofColor)));
+    document.querySelectorAll('#roof-style button').forEach(b => b.classList.toggle('active', b.dataset.v === sel.roofStyle));
+    document.getElementById('roofDamagedBtn').classList.toggle('active', sel.roofDamaged);
+  }
+
   const floorsEl = document.getElementById('floors');
   floorsEl.innerHTML = '';
   for (let f = 0; f < FLOORS; f++) {
@@ -1856,7 +2150,7 @@ board.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { h
 function tapCell(c) {
   hover = c;
   if (overwrite && state.shape) { place(); return; }
-  const hit = occupancy(state.pieces, state.floor).get(key(c.x, c.y));
+  const hit = pieceAt(c.x, c.y, state.floor);
   if (hit) { selectedId = hit.id === selectedId ? null : hit.id; setStatus(''); render(); return; }
   if (selectedId !== null) { selectedId = null; render(); return; }
   place();
@@ -1932,7 +2226,7 @@ board.addEventListener('contextmenu', e => {
   e.preventDefault();
   const c = cellFromEvent(e);
   if (!c) return;
-  const hit = occupancy(state.pieces, state.floor).get(key(c.x, c.y));
+  const hit = pieceAt(c.x, c.y, state.floor);
   if (hit) deletePiece(hit.id);
 });
 
@@ -1959,6 +2253,35 @@ function buildSceneOptions() {
     [k, g.name, `radial-gradient(circle at 30% 35%, ${g.accent} 0 18%, transparent 19%), radial-gradient(circle at 72% 70%, ${g.dcol} 0 9%, transparent 10%), ${g.base}`]), true);
   add('backdrop', Object.entries(BACKDROPS).map(([k, b]) => [k, b.name, `linear-gradient(${b.top}, ${b.bottom})`]), true);
   for (const k of ['detail', 'surround', 'grid']) add(k, SCENE_OPTS[k]);
+}
+
+// Roof popover: color and style act on the current selection (a building, round building or roof
+// panel), the same way Rail does, so they go through transformSelected and the usual undo/save/render.
+function buildRoofOptions() {
+  const colorEl = document.getElementById('roof-color');
+  for (const [v, label, bg] of ROOF_COLORS) {
+    const b = document.createElement('button');
+    b.className = 'swatch'; b.dataset.v = String(v);
+    const sw = document.createElement('span');
+    sw.style.background = bg;
+    b.appendChild(sw);
+    b.appendChild(document.createTextNode(label));
+    b.onclick = () => transformSelected(p => p.roofColor = v, v ? 'Roof color changed' : 'Roof color reset to default');
+    colorEl.appendChild(b);
+  }
+  const styleEl = document.getElementById('roof-style');
+  for (const v of ROOF_STYLES) {
+    const b = document.createElement('button');
+    b.dataset.v = v;
+    b.textContent = ROOF_STYLE_LABELS[v];
+    b.onclick = () => transformSelected(p => p.roofStyle = v, `Roof style: ${ROOF_STYLE_LABELS[v]}`);
+    styleEl.appendChild(b);
+  }
+  document.getElementById('roofDamagedBtn').onclick = () => {
+    const sel = byId(selectedId);
+    if (!sel) return;
+    transformSelected(p => p.roofDamaged = !p.roofDamaged, sel.roofDamaged ? 'Roof repaired' : 'Roof damaged');
+  };
 }
 document.querySelectorAll('dialog').forEach(d => {
   d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
@@ -2074,7 +2397,8 @@ function download(blob, name) {
 }
 
 document.getElementById('exportJson').onclick = () => {
-  const data = {version: 1, pieces: state.pieces.map(({shape, rot, flip, rail, x, y, floor}) => ({shape, rot, flip, rail, x, y, floor})), board: state.board, scene: state.scene};
+  const data = {version: 1, pieces: state.pieces.map(({shape, rot, flip, rail, roofColor, roofStyle, roofDamaged, x, y, floor}) =>
+    ({shape, rot, flip, rail, roofColor, roofStyle, roofDamaged, x, y, floor})), board: state.board, scene: state.scene};
   download(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}), 'ttp-layout.json');
 };
 document.getElementById('importJson').onclick = () => document.getElementById('fileIn').click();
@@ -2084,7 +2408,7 @@ document.getElementById('fileIn').onchange = async e => {
   if (!file) return;
   try {
     const data = JSON.parse(await file.text());
-    const pieces = sanitize(Array.isArray(data) ? data : data.pieces || [], state.nextId);
+    const pieces = orientBalconies(sanitize(Array.isArray(data) ? data : data.pieces || [], state.nextId));
     const prev = [NX, NY];
     if (data.board) setBoardSize(data.board.w, data.board.h);
     const err = validate(pieces);
@@ -2135,6 +2459,7 @@ fitCell();
 Object.assign(cam, {dist: DEFAULT_CAM.dist * Math.max(NX, NY) / 10});
 buildPalette();
 buildSceneOptions();
+buildRoofOptions();
 render();
 
 // Installable / offline app support. Service workers need http(s), so this is skipped when opened as a local file.
