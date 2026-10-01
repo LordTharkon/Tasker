@@ -409,7 +409,7 @@ function fitCell() {
   CELL = Math.max(12, Math.min(96, Math.round(Math.max(fit, 24) * boardZoom)));
 }
 const C = {
-  roof: '#45494e', slat: '#373a3e',
+  roof: '#45494e',
   wallA: '#35383c', wallB: '#2b2e31', edge: '#141618', window: '#9aa0a6', rail: '#a3a8ad',
   trunk: '#5b4128', pine: '#2f5a34', leaf: '#4d7a3a', bush: '#557f3e', rock: '#7d7f80',
   crate: '#9a7747', crateFrame: '#6b4e2c', crateEdge: '#4f3a1f', concrete: '#a19f98', sand: '#b39c6c',
@@ -491,7 +491,6 @@ const GROUNDS = {
 };
 // Dark grounds get lighter roofs so buildings stand out from the surface.
 const roofCol = () => G().lightRoof ? '#7a8087' : C.roof;
-const slatCol = () => G().lightRoof ? '#666b71' : C.slat;
 // Per-piece roof look: color overrides roofCol() when set, style changes the roof's geometry.
 const ROOF_STYLES = ['flat', 'gabled', 'sloped', 'parapet'];
 const ROOF_STYLE_LABELS = {flat: 'Flat', gabled: 'Gabled', sloped: 'Sloped', parapet: 'Parapet'};
@@ -940,6 +939,138 @@ function groundCanvas(cell) {
   return cv;
 }
 
+// ---------- Roofs (shared by the 2D board and 3D view) ----------
+
+const PITCHED = new Set(['gabled', 'sloped']);
+const PARAPET = {w: .08, h: .16};
+// Rotates/flips a unit direction the same way shapeCells turns a piece, so a roof's slope follows the
+// piece's own rot/flip.
+function roofTurn(dx, dy, rot, flip) {
+  if (flip) dx = -dx;
+  for (let i = 0; i < rot; i++) [dx, dy] = [-dy, dx];
+  return [dx, dy];
+}
+// One roof spanning a whole piece, so a gabled or sloped roof is a single surface rather than a little roof
+// per cell. Its pitch runs across one axis (ax): `a` is the coordinate across it, `b` the one along it, and
+// f(a) is the roof's rise above the eaves. Gabled puts the ridge along the footprint's long side (square
+// footprints follow the rotation); sloped climbs towards the piece's rotated "down" direction.
+function roofFrame(cells, style, rot, flip) {
+  const xs = cells.map(c => c[0]), ys = cells.map(c => c[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
+  const fr = {style, x0, y0, set: new Set(cells.map(([x, y]) => key(x, y))), ax: rot % 2 ? 'x' : 'y',
+    rise: 0, f: () => 0, ridge: null, high: null};
+  const span = () => fr.ax === 'x' ? [x0, x1] : [y0, y1];
+  if (style === 'gabled') {
+    const w = x1 - x0, d = y1 - y0;
+    if (w !== d) fr.ax = w > d ? 'y' : 'x';
+    const [a0, a1] = span(), half = (a1 - a0) / 2;
+    fr.ridge = a0 + half;
+    fr.rise = Math.min(.55, half * .7);
+    fr.f = a => fr.rise * Math.max(0, 1 - Math.abs(a - fr.ridge) / half);
+  } else if (style === 'sloped') {
+    const [ux, uy] = roofTurn(0, 1, rot, flip);
+    fr.ax = ux ? 'x' : 'y';
+    const [a0, a1] = span(), up = ux + uy > 0;
+    fr.a0 = a0; fr.a1 = a1; fr.high = up ? a1 : a0;
+    fr.rise = Math.min(.6, .3 + .1 * (a1 - a0));
+    fr.f = a => fr.rise * (up ? a - a0 : a1 - a) / (a1 - a0);
+  }
+  fr.xy = (a, b) => fr.ax === 'x' ? [a, b] : [b, a];
+  fr.ab = (x, y) => fr.ax === 'x' ? [x, y] : [y, x];
+  return fr;
+}
+// One cell's strips across the pitch, as [a start, a end], split where the ridge runs through the cell.
+function roofStrips(fr, x, y) {
+  const [a] = fr.ab(x, y), r = fr.ridge;
+  return r != null && r > a + 1e-6 && r < a + 1 - 1e-6 ? [[a, r], [r, a + 1]] : [[a, a + 1]];
+}
+const roofSeed = (fr, p) => fr.x0 * 7.13 + fr.y0 * 3.71 + (p.floor || 0) * 1.37;
+// Parapet wall footprint as world rects [x0, y0, x1, y1]: a strip along each cell edge that faces off the
+// piece, plus a corner post where an L's inner corner would otherwise leave a notch.
+function parapetRects(fr) {
+  const w = PARAPET.w, out = [], has = (x, y) => fr.set.has(key(x, y));
+  for (const k of fr.set) {
+    const [x, y] = k.split(',').map(Number);
+    if (!has(x, y - 1)) out.push([x, y, x + 1, y + w]);
+    if (!has(x, y + 1)) out.push([x, y + 1 - w, x + 1, y + 1]);
+    if (!has(x - 1, y)) out.push([x, y, x + w, y + 1]);
+    if (!has(x + 1, y)) out.push([x + 1 - w, y, x + 1, y + 1]);
+    for (const dx of [-1, 1]) for (const dy of [-1, 1])
+      if (has(x + dx, y) && has(x, y + dy) && !has(x + dx, y + dy)) {
+        const px = dx > 0 ? x + 1 - w : x, py = dy > 0 ? y + 1 - w : y;
+        out.push([px, py, px + w, py + w]);
+      }
+  }
+  return out;
+}
+// Damage: a few seeded shell holes on a roof, in world cell units. Each sits inside a roof cell, off the
+// ridge so it lies on one face, and is sized (with its soot ring) to stay clear of open roof edges.
+function roofHoles(fr, cells, seed) {
+  const has = (x, y) => fr.set.has(key(x, y)), pad = .03 + (fr.style === 'parapet' ? PARAPET.w : 0);
+  const n = Math.min(4, Math.max(1, Math.round(cells.length / 2))), holes = [], used = new Set();
+  for (let i = 0; i < n * 3 && holes.length < n; i++) {
+    const ci = Math.floor(rand(seed, i, 1) * cells.length);
+    if (used.has(ci)) continue;
+    used.add(ci);
+    const [x, y] = cells[ci];
+    let hx = x + .3 + .4 * rand(seed, i, 2), hy = y + .3 + .4 * rand(seed, i, 3);
+    let lim = Infinity;
+    if (fr.ridge != null) {
+      let [a, b] = fr.ab(hx, hy);
+      if (Math.abs(a - fr.ridge) < .25) a = fr.ridge + (a < fr.ridge ? -.25 : .25);
+      [hx, hy] = fr.xy(a, b);
+      lim = Math.abs(a - fr.ridge);
+    }
+    const cx = Math.floor(hx), cy = Math.floor(hy);
+    if (!has(cx, cy)) continue;
+    if (!has(cx - 1, cy)) lim = Math.min(lim, hx - cx - pad);
+    if (!has(cx + 1, cy)) lim = Math.min(lim, cx + 1 - hx - pad);
+    if (!has(cx, cy - 1)) lim = Math.min(lim, hy - cy - pad);
+    if (!has(cx, cy + 1)) lim = Math.min(lim, cy + 1 - hy - pad);
+    const r = Math.min(.13 + .09 * rand(seed, i, 4), lim / 1.35);
+    if (r < .07) continue;
+    holes.push({x: hx, y: hy, r, rs: Math.min(r * 1.75, lim / 1.15), seed: seed * 3.1 + i * 17.7});
+  }
+  return holes;
+}
+// Same for a round roof (center g.cx/g.cy, radius g.r): holes kept off a cone's apex and inside the rim.
+function roundHoles(g, style, seed) {
+  const pad = .03 + (style === 'parapet' ? PARAPET.w : 0), holes = [], n = g.r > .6 ? 2 : 1;
+  for (let i = 0; i < n; i++) {
+    const ang = (i + rand(seed, i, 1) * .5) / n * Math.PI * 2, dist = g.r * (.38 + .2 * rand(seed, i, 2));
+    const lim = Math.min(g.r - dist - pad, style === 'gabled' ? dist : Infinity);
+    const r = Math.min(.13 + .09 * rand(seed, i, 4), lim / 1.35);
+    if (r < .07) continue;
+    holes.push({x: g.cx + Math.cos(ang) * dist, y: g.cy + Math.sin(ang) * dist, r, rs: Math.min(r * 1.75, lim / 1.15), seed: seed * 3.1 + i * 17.7});
+  }
+  return holes;
+}
+// Seeded ragged ring around (cx, cy), alternating long and short spikes like torn sheet metal.
+function jagged(cx, cy, r, seed, n = 11) {
+  return Array.from({length: n}, (_, k) => {
+    const a = (k + rand(seed, k, 5) * .6) / n * Math.PI * 2;
+    const rr = r * (k % 2 ? .72 + .2 * rand(seed, k, 6) : .95 + .2 * rand(seed, k, 7));
+    return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr];
+  });
+}
+// The pieces of one hole, shared by the 2D and 3D renderers: soot ring, torn rim, the hole itself, a rafter
+// across it, cracks radiating out and a few scraps of debris.
+function holeParts(h) {
+  const {x, y, r, rs, seed} = h, ba = rand(seed, 1, 8) * Math.PI, bl = r * .62;
+  const cracks = [], debris = [];
+  for (let k = 0; k < 4; k++) {
+    const a = (k + rand(seed, k, 9) * .7) / 4 * Math.PI * 2, l = r * 1.05 + (rs - r * 1.05) * (.6 + .4 * rand(seed, k, 10));
+    cracks.push([[x + Math.cos(a) * r * .9, y + Math.sin(a) * r * .9], [x + Math.cos(a) * l, y + Math.sin(a) * l]]);
+    const da = a + 1.3, dd = r * 1.2 + (rs - r * 1.2) * .5 * rand(seed, k, 11);
+    if (k < 3) debris.push([x + Math.cos(da) * dd, y + Math.sin(da) * dd, .025 + .025 * rand(seed, k, 12)]);
+  }
+  return {
+    soot: jagged(x, y, rs, seed + 1, 14), rim: jagged(x, y, r * 1.12, seed + 2), hole: jagged(x, y, r, seed),
+    beam: [[x - Math.cos(ba) * bl, y - Math.sin(ba) * bl], [x + Math.cos(ba) * bl, y + Math.sin(ba) * bl]],
+    cracks, debris,
+  };
+}
+
 // ---------- Top-down 2D board ----------
 
 function outlinePath(ctx, cells, set, ox, oy, cell) {
@@ -953,56 +1084,87 @@ function outlinePath(ctx, cells, set, ox, oy, cell) {
   }
 }
 
-// One roof cell/cube top, in top-down 2D: a flat fill plus a style-specific line pattern (rotated/flipped
-// to match the piece), with a couple of seeded dark patches punched in when damaged.
-function drawRoofCell(ctx, X, Y, cell, style, color, damaged, rot, flip, seedX, seedY) {
-  ctx.fillStyle = color;
-  ctx.fillRect(X, Y, cell, cell);
-  ctx.save();
-  ctx.translate(X + cell / 2, Y + cell / 2);
-  ctx.rotate(rot * Math.PI / 2);
-  if (flip) ctx.scale(-1, 1);
-  const h = cell / 2;
-  ctx.strokeStyle = slatCol();
-  ctx.lineWidth = Math.max(0.5, cell / 40);
+// Top-down roof: each face filled in its own shade (lit from the top left; a slope fades from its high
+// edge down), sheet seams in a darker tone of the roof's own color, the ridge or high edge picked out,
+// a parapet wall along the piece's outer edges, then any damage on top.
+function drawRoof(ctx, cells, ox, oy, cell, p) {
+  const color = p.roofColor || roofCol(), fr = roofFrame(cells, p.roofStyle || 'flat', p.rot, p.flip);
+  const S = (a, b) => { const [x, y] = fr.xy(a, b); return [ox + x * cell, oy + y * cell]; };
+  const rectAB = (a0, a1, b0, b1) => {
+    const [xa, ya] = S(a0, b0), [xb, yb] = S(a1, b1);
+    ctx.rect(Math.min(xa, xb), Math.min(ya, yb), Math.abs(xb - xa), Math.abs(yb - ya));
+  };
+  const line = (a0, b0, a1, b1) => { ctx.moveTo(...S(a0, b0)); ctx.lineTo(...S(a1, b1)); };
+  let slope;
+  if (fr.style === 'sloped') {
+    const low = fr.high === fr.a0 ? fr.a1 : fr.a0;
+    slope = ctx.createLinearGradient(...S(fr.high, 0), ...S(low, 0));
+    slope.addColorStop(0, shade(color, 1.14)); slope.addColorStop(1, shade(color, .8));
+  }
+  for (const [x, y] of cells) {
+    const [, b] = fr.ab(x, y);
+    for (const [s, e] of roofStrips(fr, x, y)) {
+      ctx.beginPath(); rectAB(s, e, b, b + 1);
+      ctx.fillStyle = slope || (fr.ridge == null ? color : shade(color, s < fr.ridge ? 1.1 : .8));
+      ctx.fill();
+    }
+  }
+  ctx.strokeStyle = shade(color, .72); ctx.lineWidth = Math.max(.5, cell / 40);
   ctx.beginPath();
-  if (style === 'gabled') {
-    ctx.moveTo(0, -h); ctx.lineTo(0, h);
-    ctx.moveTo(-h, -h * .6); ctx.lineTo(0, -h);
-    ctx.moveTo(h, -h * .6); ctx.lineTo(0, -h);
-  } else if (style === 'sloped') {
-    ctx.moveTo(-h, -h * .6); ctx.lineTo(h, -h * .1);
-    ctx.moveTo(-h, h * .1); ctx.lineTo(h, h * .6);
-  } else if (style === 'parapet') {
-    const inset = cell * .12;
-    ctx.rect(-h + inset, -h + inset, cell - inset * 2, cell - inset * 2);
-  } else {
-    for (let i = 1; i < 6; i++) { ctx.moveTo(-h, -h + cell * i / 6); ctx.lineTo(h, -h + cell * i / 6); }
+  for (const [x, y] of cells) {
+    const [a, b] = fr.ab(x, y);
+    if (fr.rise) for (let i = 1; i < 4; i++) line(a, b + i / 4, a + 1, b + i / 4);
+    else if (fr.style === 'flat') for (let i = 1; i < 6; i++) line(a + i / 6, b, a + i / 6, b + 1);
   }
   ctx.stroke();
-  ctx.restore();
-  if (!damaged) return;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  for (let i = 0; i < 2; i++) {
-    const r1 = rand(seedX, seedY, i * 3 + 1), r2 = rand(seedX, seedY, i * 3 + 2), r3 = rand(seedX, seedY, i * 3 + 3);
-    const cx = X + cell * (0.25 + 0.5 * r1), cy = Y + cell * (0.25 + 0.5 * r2), r = cell * (0.1 + 0.12 * r3);
+  if (fr.rise) {
+    // Ridge cap (gabled) or flashing along the high edge (sloped).
+    const top = fr.ridge ?? fr.high;
+    ctx.strokeStyle = shade(color, .55); ctx.lineWidth = Math.max(1, cell / 14);
     ctx.beginPath();
-    for (let k = 0; k < 6; k++) {
-      const a = k / 6 * Math.PI * 2, rr = r * (0.7 + 0.5 * rand(seedX, seedY, i * 10 + k));
-      ctx[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    for (const [x, y] of cells) {
+      const [a, b] = fr.ab(x, y);
+      if (top >= a && top <= a + 1) line(top, b, top, b + 1);
     }
-    ctx.closePath(); ctx.fill();
+    ctx.stroke();
+  }
+  if (fr.style === 'parapet') {
+    ctx.fillStyle = shade(color, .74);
+    for (const [x0, y0, x1, y1] of parapetRects(fr))
+      ctx.fillRect(ox + x0 * cell, oy + y0 * cell, (x1 - x0) * cell, (y1 - y0) * cell);
+  }
+  if (p.roofDamaged) drawRoofDamage(ctx, roofHoles(fr, cells, roofSeed(fr, p)), color, ox, oy, cell);
+}
+
+// Shell holes from above: soot scorch, cracks, a torn rim of bent-up sheet, the dark hole and a rafter
+// showing through it.
+function drawRoofDamage(ctx, holes, color, ox, oy, cell) {
+  const P = ([x, y]) => [ox + x * cell, oy + y * cell];
+  const poly = (pts, fill) => {
+    ctx.beginPath(); pts.forEach((q, i) => ctx[i ? 'lineTo' : 'moveTo'](...P(q))); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill();
+  };
+  for (const h of holes) {
+    const d = holeParts(h);
+    poly(d.soot, 'rgba(20,16,12,0.38)');
+    ctx.strokeStyle = shade(color, .45); ctx.lineWidth = Math.max(.6, cell / 36);
+    ctx.beginPath();
+    for (const [a, b] of d.cracks) { ctx.moveTo(...P(a)); ctx.lineTo(...P(b)); }
+    ctx.stroke();
+    poly(d.rim, shade(color, 1.35));
+    poly(d.hole, '#121110');
+    ctx.strokeStyle = '#3b3631'; ctx.lineWidth = h.r * .22 * cell;
+    ctx.beginPath(); ctx.moveTo(...P(d.beam[0])); ctx.lineTo(...P(d.beam[1])); ctx.stroke();
+    ctx.fillStyle = shade(color, .85);
+    for (const [x, y, s] of d.debris) { const [X, Y] = P([x, y]); ctx.fillRect(X - s * cell / 2, Y - s * cell / 2, s * cell, s * cell); }
   }
 }
 
 function drawBuilding(ctx, cells, set, ox, oy, cell, p) {
   const t = Math.max(1.5, cell * 0.13);
-  const color = p.roofColor || roofCol(), style = p.roofStyle || 'flat';
-  for (const [x, y] of cells) {
-    const X = ox + x * cell, Y = oy + y * cell;
-    drawRoofCell(ctx, X, Y, cell, style, color, p.roofDamaged, p.rot, p.flip, x, y);
-  }
-  if (!p.rail) return;
+  drawRoof(ctx, cells, ox, oy, cell, p);
+  // A pitched roof has nowhere to stand, so its railing is left off.
+  if (!p.rail || PITCHED.has(p.roofStyle)) return;
   ctx.fillStyle = C.rail;
   for (const [x, y] of cells) {
     const X = ox + x * cell, Y = oy + y * cell;
@@ -1016,40 +1178,49 @@ function drawBuilding(ctx, cells, set, ox, oy, cell, p) {
 function drawRound(ctx, cells, ox, oy, cell, p) {
   const g = roundGeom(cells), X = ox + g.cx * cell, Y = oy + g.cy * cell, R = g.r * cell;
   const t = Math.max(1.5, cell * .13), color = p.roofColor || roofCol(), style = p.roofStyle || 'flat';
+  const [ux, uy] = roofTurn(0, 1, p.rot, p.flip);
   ctx.save();
   ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2);
-  ctx.fillStyle = color; ctx.fill();
+  if (style === 'gabled') {
+    // Cone, lit from the top left.
+    const gr = ctx.createLinearGradient(X - R, Y - R, X + R, Y + R);
+    gr.addColorStop(0, shade(color, 1.15)); gr.addColorStop(1, shade(color, .78));
+    ctx.fillStyle = gr;
+  } else if (style === 'sloped') {
+    const gr = ctx.createLinearGradient(X + ux * R, Y + uy * R, X - ux * R, Y - uy * R);
+    gr.addColorStop(0, shade(color, 1.14)); gr.addColorStop(1, shade(color, .8));
+    ctx.fillStyle = gr;
+  } else ctx.fillStyle = color;
+  ctx.fill();
   ctx.clip();
-  ctx.strokeStyle = slatCol(); ctx.lineWidth = Math.max(0.5, cell / 40);
+  ctx.strokeStyle = shade(color, .72); ctx.lineWidth = Math.max(0.5, cell / 40);
   ctx.beginPath();
   if (style === 'gabled') {
-    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; ctx.moveTo(X, Y); ctx.lineTo(X + Math.cos(a) * R, Y + Math.sin(a) * R); }
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; ctx.moveTo(X, Y); ctx.lineTo(X + Math.cos(a) * R, Y + Math.sin(a) * R); }
   } else if (style === 'sloped') {
-    for (let i = 1; i <= 3; i++) { ctx.moveTo(X - R * .3 + R * i / 4, Y - R * .3); ctx.arc(X - R * .3, Y - R * .3, R * i / 4, 0, Math.PI * 2); }
-  } else if (style === 'parapet') {
-    ctx.moveTo(X + R * .78, Y); ctx.arc(X, Y, R * .78, 0, Math.PI * 2);
-  } else {
+    // Seams run down the slope.
+    for (let o = -R + cell / 4; o < R; o += cell / 4) { ctx.moveTo(X - uy * o - ux * R, Y + ux * o - uy * R); ctx.lineTo(X - uy * o + ux * R, Y + ux * o + uy * R); }
+  } else if (style === 'flat') {
     for (let yy = Y - R + cell / 6; yy < Y + R; yy += cell / 6) { ctx.moveTo(X - R, yy); ctx.lineTo(X + R, yy); }
   }
   ctx.stroke();
-  if (p.roofDamaged) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    for (let i = 0; i < 2; i++) {
-      const r1 = rand(g.cx, g.cy, i * 3 + 1), r2 = rand(g.cx, g.cy, i * 3 + 2), r3 = rand(g.cx, g.cy, i * 3 + 3);
-      const a = r1 * Math.PI * 2, dist = r2 * R * .6, hr = R * (0.15 + 0.15 * r3);
-      ctx.beginPath(); ctx.arc(X + Math.cos(a) * dist, Y + Math.sin(a) * dist, hr, 0, Math.PI * 2); ctx.fill();
-    }
+  if (style === 'parapet') {
+    ctx.beginPath(); ctx.arc(X, Y, R - PARAPET.w * cell / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = shade(color, .74); ctx.lineWidth = PARAPET.w * cell; ctx.stroke();
+  } else if (style === 'gabled') {
+    ctx.beginPath(); ctx.arc(X, Y, Math.max(1.5, cell * .05), 0, Math.PI * 2);
+    ctx.fillStyle = shade(color, .55); ctx.fill();
   }
+  if (p.roofDamaged) drawRoofDamage(ctx, roundHoles(g, style, g.cx * 7.13 + g.cy * 3.71 + p.floor * 1.37), color, ox, oy, cell);
   ctx.restore();
-  if (!p.rail) return;
+  if (!p.rail || PITCHED.has(style)) return;
   ctx.beginPath(); ctx.arc(X, Y, R - t / 2, 0, Math.PI * 2);
   ctx.strokeStyle = C.rail; ctx.lineWidth = t; ctx.stroke();
 }
 
 // Roof panel: a free footprint of roof-only cells, independent of any building underneath.
 function drawRoofPanel(ctx, p, cells, ox, oy, cell) {
-  const color = p.roofColor || roofCol(), style = p.roofStyle || 'flat';
-  for (const [x, y] of cells) drawRoofCell(ctx, ox + x * cell, oy + y * cell, cell, style, color, p.roofDamaged, p.rot, p.flip, x, y);
+  drawRoof(ctx, cells, ox, oy, cell, p);
 }
 
 // Balcony deck from above: metal grating, a dark strip along the wall side, railings along the open edges.
@@ -1351,7 +1522,10 @@ function mul(a, b) {
 
 const mesh = () => ({p: [], n: [], c: []});
 function quad(m, a, b, c, d, col) {
-  const nn = cross(sub(b, a), sub(d, a));
+  let nn = cross(sub(b, a), sub(d, a));
+  // A triangle passed as a quad with a repeated corner: take the normal from corners that differ.
+  if (!dot(nn, nn)) nn = cross(sub(b, a), sub(c, a));
+  if (!dot(nn, nn)) nn = cross(sub(c, a), sub(d, a));
   for (const q of [a, b, c, a, c, d]) { m.p.push(...q); m.n.push(...nn); m.c.push(...col); }
 }
 function seg(m, a, b, col) {
@@ -1549,75 +1723,110 @@ function terrainModel(M, p, x, y, set, A, walls) {
   }
 }
 
-// Rotates/flips a unit direction the same way shapeCells turns a piece, so a roof style's ridge/slope
-// axis follows the piece's own rot/flip.
-function roofTurn(dx, dy, rot, flip) {
-  if (flip) dx = -dx;
-  for (let i = 0; i < rot; i++) [dx, dy] = [-dy, dx];
-  return [dx, dy];
-}
-// One roof cube's cap, in 3D, at world x/y (cell origin) and height h: a style-specific shape, oriented
-// by rot/flip, with a couple of seeded dark decal patches laid on the surface when damaged.
-function roofCubeMesh(M, x, y, h, style, color, damaged, rot, flip, col) {
-  const c = col(color), sc = col(slatCol()), cx = x + .5, cy = y + .5;
-  const [dx, dy] = roofTurn(1, 0, rot, flip), [ux, uy] = roofTurn(0, 1, rot, flip);
-  const P = (a, b, hh) => [cx + (dx * a + ux * b) * .5, hh, cy + (dy * a + uy * b) * .5];
-  if (style === 'gabled') {
-    const ridge = h + .35;
-    quad(M.tri, P(-1, -1, h), P(1, -1, h), P(1, 0, ridge), P(-1, 0, ridge), c);
-    quad(M.tri, P(-1, 0, ridge), P(1, 0, ridge), P(1, 1, h), P(-1, 1, h), c);
-    seg(M.line, P(-1, 0, ridge + .002), P(1, 0, ridge + .002), sc);
-  } else if (style === 'sloped') {
-    quad(M.tri, P(-1, -1, h), P(1, -1, h), P(1, 1, h + .4), P(-1, 1, h + .4), c);
-  } else if (style === 'parapet') {
-    quad(M.tri, [x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1], c);
-    const pw = .06, ph = .16, pc = col(shade(color, .8)), Pb = (u, hh, v) => [x + u, h + hh, y + v];
-    cuboid(M.tri, Pb, pw, 0, pw, 1 - pw, ph, 1 - pw, pc);
-  } else {
-    quad(M.tri, [x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1], c);
-    for (let i = 1; i < 6; i++) seg(M.line, [x, h + .002, y + i / 6], [x + 1, h + .002, y + i / 6], sc);
+// One roofed cell of a piece's roof (frame fr), in 3D, with eaves at height h (plus `lift` for a free roof
+// panel's slab): its strip(s) of the shared surface, sheet seams, the ridge cap, and on edges facing off the
+// piece either a closing wall (gable end, the tall side of a slope, a panel's slab edge) or the parapet.
+function roofCellMesh(M, fr, x, y, h, color, col, endCol, lift = 0) {
+  const c = col(color), sc = col(shade(color, .72)), H = a => h + lift + fr.f(a);
+  const W = (a, b, hh) => { const [wx, wy] = fr.xy(a, b); return [wx, hh, wy]; };
+  const [a0, b0] = fr.ab(x, y);
+  for (const [s, e] of roofStrips(fr, x, y)) {
+    quad(M.tri, W(s, b0, H(s)), W(s, b0 + 1, H(s)), W(e, b0 + 1, H(e)), W(e, b0, H(e)), c);
+    if (fr.rise) for (let i = 1; i < 4; i++) seg(M.line, W(s, b0 + i / 4, H(s) + .004), W(e, b0 + i / 4, H(e) + .004), sc);
   }
-  if (!damaged) return;
-  const dark = col(shade(color, .35));
-  for (let i = 0; i < 2; i++) {
-    const r1 = rand(x, y, i * 3 + 1), r2 = rand(x, y, i * 3 + 2), r3 = rand(x, y, i * 3 + 3);
-    const a = (r1 - .5) * 1.8, b = (r2 - .5) * 1.8, s = .1 + .1 * r3;
-    const hh = (style === 'sloped' ? h + .4 * (b + 1) / 2 : style === 'gabled' ? h + .35 * (1 - Math.abs(b)) : h) + .01;
-    const [px, , pz] = P(a, b, 0);
-    quad(M.tri, [px - s, hh, pz - s], [px + s, hh, pz - s], [px + s, hh, pz + s], [px - s, hh, pz + s], dark);
+  if (fr.style === 'flat') for (let i = 1; i < 6; i++) seg(M.line, W(a0 + i / 6, b0, H(0) + .002), W(a0 + i / 6, b0 + 1, H(0) + .002), sc);
+  const top = fr.ridge ?? fr.high;
+  if (top != null && top >= a0 && top < a0 + 1 + 1e-6 && (top < a0 + 1 - 1e-6 || !fr.set.has(key(...fr.xy(a0 + 1, b0)))))
+    cuboid(M.tri, (u, hh, v) => W(top + v, b0 + u, H(top) + hh), 0, -.025, -.035, 1, .025, .035, col(shade(color, .6)));
+  if (lift) quad(M.tri, [x, h, y], [x + 1, h, y], [x + 1, h, y + 1], [x, h, y + 1], col(shade(color, .45)));
+  // Edges facing off the piece, sampled at their ends and where the ridge crosses them; nudged a hair
+  // inwards so they don't fight a neighbouring wall in the same plane.
+  const ends = col(endCol);
+  for (const s of SIDES) {
+    if (fr.set.has(key(x + s.dx, y + s.dy))) continue;
+    const pa = [x + s.a[0] - s.dx * .004, y + s.a[1] - s.dy * .004], pb = [x + s.b[0] - s.dx * .004, y + s.b[1] - s.dy * .004];
+    const qa = fr.ab(...pa)[0], qb = fr.ab(...pb)[0], pts = [pa];
+    if (fr.ridge != null && (fr.ridge - qa) * (fr.ridge - qb) < 0) {
+      const t = (fr.ridge - qa) / (qb - qa);
+      pts.push([pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t]);
+    }
+    pts.push(pb);
+    const Ht = ([px, py]) => H(fr.ab(px, py)[0]);
+    if (pts.some(q => Ht(q) - h > .001))
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [p0, p1] = [pts[i], pts[i + 1]];
+        quad(M.tri, [p0[0], h, p0[1]], [p1[0], h, p1[1]], [p1[0], Ht(p1), p1[1]], [p0[0], Ht(p0), p0[1]], ends);
+        seg(M.line, [p0[0], Ht(p0) + .003, p0[1]], [p1[0], Ht(p1) + .003, p1[1]], col(C.edge));
+      }
+  }
+  if (fr.style !== 'parapet') return;
+  const pc = col(shade(color, .78)), cap = col(shade(color, 1.12)), hp = h + lift + PARAPET.h;
+  const mine = ([rx, ry]) => Math.floor(rx + 1e-6) === x && Math.floor(ry + 1e-6) === y;
+  for (const [rx0, ry0, rx1, ry1] of parapetRects(fr).filter(mine)) {
+    cuboid(M.tri, (u, hh, v) => [u, h + lift + hh, v], rx0, 0, ry0, rx1, PARAPET.h, ry1, pc);
+    quad(M.tri, [rx0, hp + .002, ry0], [rx1, hp + .002, ry0], [rx1, hp + .002, ry1], [rx0, hp + .002, ry1], cap);
   }
 }
-// Round building's roof cap: flat (ring fan + slats), a shallow cone for gabled, an off-center cone
-// for sloped (direction follows rot/flip), or a flat cap with a low perimeter wall for parapet.
-function roundRoofMesh(M, g, h, style, color, damaged, rot, flip, col) {
-  const c = col(color), sc = col(slatCol());
-  const S = g.r > .6 ? 40 : 24;
-  const pt = (i, hh) => { const a = i / S * Math.PI * 2; return [g.cx + Math.cos(a) * g.r, hh, g.cy + Math.sin(a) * g.r]; };
-  const [ux, uy] = roofTurn(1, 0, rot, flip);
+// Damage, in 3D: the same holes as the 2D board, laid as layered decals on the roof surface surf(x, y)
+// (soot, cracks, torn rim, the hole, a rafter across it) with a few scraps of debris lying around.
+function roofDamageMesh(M, holes, surf, color, col) {
+  const V = ([x, y], lift) => [x, surf(x, y) + lift, y];
+  const fan = (pts, h, lift, c) => pts.forEach((q, k) => {
+    const q2 = pts[(k + 1) % pts.length];
+    quad(M.tri, V([h.x, h.y], lift), V(q, lift), V(q2, lift), V(q2, lift), c);
+  });
+  for (const h of holes) {
+    const d = holeParts(h);
+    fan(d.soot, h, .006, col(shade(color, .55)));
+    for (const [a, b] of d.cracks) seg(M.line, V(a, .009), V(b, .009), col(shade(color, .4)));
+    fan(d.rim, h, .011, col(shade(color, 1.35)));
+    fan(d.hole, h, .015, col('#121110'));
+    const [ba, bb] = d.beam, w = h.r * .11, nx = -(bb[1] - ba[1]) / (h.r * 1.24) * w, ny = (bb[0] - ba[0]) / (h.r * 1.24) * w;
+    quad(M.tri, V([ba[0] - nx, ba[1] - ny], .019), V([bb[0] - nx, bb[1] - ny], .019), V([bb[0] + nx, bb[1] + ny], .019), V([ba[0] + nx, ba[1] + ny], .019), col('#3b3631'));
+    for (const [x, y, s] of d.debris)
+      cuboid(M.tri, (u, hh, v) => [x + u, surf(x, y) + hh, y + v], -s / 2, 0, -s / 2, s / 2, s * .6, s / 2, col(shade(color, .85)));
+  }
+}
+// Round building's roof cap: flat (fan + seams), a cone for gabled, a tilted disc climbing towards the
+// piece's rotated "down" direction for sloped (with a skirt closing the gap down to the wall), or a flat
+// cap ringed by a low wall for parapet. Returns the surface height function so damage can follow it.
+function roundRoofMesh(M, g, h, style, color, rot, flip, col) {
+  const c = col(color), sc = col(shade(color, .72)), S = g.r > .6 ? 40 : 24, r = g.r;
+  const [ux, uy] = roofTurn(0, 1, rot, flip);
+  const rise = style === 'gabled' ? r * .6 : style === 'sloped' ? Math.min(.6, .3 + .2 * r) : 0;
+  const surf = (x, y) => {
+    const dx = x - g.cx, dy = y - g.cy;
+    if (style === 'gabled') return h + rise * (1 - Math.min(1, Math.hypot(dx, dy) / r));
+    if (style === 'sloped') return h + rise * ((dx * ux + dy * uy) / r + 1) / 2;
+    return h;
+  };
+  const rim = i => { const a = i / S * Math.PI * 2; return [g.cx + Math.cos(a) * r, g.cy + Math.sin(a) * r]; };
+  const V = ([x, y], lift = 0) => [x, surf(x, y) + lift, y];
+  for (let i = 0; i < S; i++) quad(M.tri, V([g.cx, g.cy]), V(rim(i)), V(rim(i + 1)), V(rim(i + 1)), c);
   if (style === 'gabled') {
-    lathe(M.tri, (u, hh, v) => [g.cx + u, hh, g.cy + v], [[g.r, h], [0, h + g.r * .5]], S, c);
-  } else if (style === 'parapet') {
-    for (let i = 0; i < S; i++) quad(M.tri, [g.cx, h, g.cy], pt(i, h), pt(i + 1, h), pt(i + 1, h), c);
-    const ph = .16, pc = col(shade(color, .8));
-    lathe(M.tri, (u, hh, v) => [g.cx + u, hh, g.cy + v], [[g.r * .92, h], [g.r * .92, h + ph], [g.r * .8, h + ph], [g.r * .8, h]], S, pc);
+    for (let i = 0; i < 16; i++) seg(M.line, V([g.cx, g.cy], .004), V(rim(i * S / 16), .004), sc);
+    lathe(M.tri, (u, hh, v) => [g.cx + u, h + rise + hh, g.cy + v], [[.06, -.03], [.05, .02], [0, .04]], 8, col(shade(color, .6)));
   } else if (style === 'sloped') {
-    const apex = [g.cx - ux * g.r * .3, h + g.r * .55, g.cy - uy * g.r * .3];
-    for (let i = 0; i < S; i++) quad(M.tri, apex, pt(i, h), pt(i + 1, h), pt(i + 1, h), c);
+    for (let i = 0; i < S; i++) {
+      const [a, b] = [rim(i), rim(i + 1)];
+      quad(M.tri, [a[0], h, a[1]], [b[0], h, b[1]], V(b), V(a), col(C.wallA));
+      seg(M.line, V(a, .003), V(b, .003), col(C.edge));
+    }
+    // Seams run down the slope.
+    for (let o = -r + .25; o < r; o += .25) {
+      const l = Math.sqrt(r * r - o * o), px = g.cx - uy * o, py = g.cy + ux * o;
+      seg(M.line, V([px - ux * l, py - uy * l], .004), V([px + ux * l, py + uy * l], .004), sc);
+    }
+  } else if (style === 'parapet') {
+    lathe(M.tri, (u, hh, v) => [g.cx + u, hh, g.cy + v],
+      [[r, h], [r, h + PARAPET.h], [r - PARAPET.w, h + PARAPET.h], [r - PARAPET.w, h]], S, col(shade(color, .78)));
   } else {
-    for (let i = 0; i < S; i++) quad(M.tri, [g.cx, h, g.cy], pt(i, h), pt(i + 1, h), pt(i + 1, h), c);
-    for (let zz = g.cy - g.r + 1 / 6; zz < g.cy + g.r; zz += 1 / 6) {
-      const hw = Math.sqrt(Math.max(0, g.r * g.r - (zz - g.cy) ** 2));
+    for (let zz = g.cy - r + 1 / 6; zz < g.cy + r; zz += 1 / 6) {
+      const hw = Math.sqrt(Math.max(0, r * r - (zz - g.cy) ** 2));
       seg(M.line, [g.cx - hw, h + .002, zz], [g.cx + hw, h + .002, zz], sc);
     }
   }
-  if (!damaged) return;
-  const dark = col(shade(color, .35));
-  for (let i = 0; i < 2; i++) {
-    const r1 = rand(g.cx, g.cy, i * 3 + 1), r2 = rand(g.cx, g.cy, i * 3 + 2), r3 = rand(g.cx, g.cy, i * 3 + 3);
-    const a = r1 * Math.PI * 2, dist = r2 * g.r * .5, s = g.r * (.12 + .1 * r3);
-    const cx = g.cx + Math.cos(a) * dist, cz = g.cy + Math.sin(a) * dist, hh = h + .02;
-    quad(M.tri, [cx - s, hh, cz - s], [cx + s, hh, cz - s], [cx + s, hh, cz + s], [cx - s, hh, cz + s], dark);
-  }
+  return surf;
 }
 
 // Round building (silo/tank style) for one floor: corrugated wall, windows, roof and ring railing.
@@ -1648,14 +1857,17 @@ function roundModel(M, p, A, any, stacked, covered) {
   if (f > 0) for (let i = 0; i < S; i++) quad(M.tri, c0, pt(i, f), pt(i + 1, f), pt(i + 1, f), col(C.wallB));
   if (stacked || covered) return;
   const h = f + 1;
-  roundRoofMesh(M, g, h, p.roofStyle || 'flat', p.roofColor || roofCol(), p.roofDamaged, p.rot, p.flip, col);
-  if (!p.rail) return;
-  const rc = col(C.rail), H = .3, post = .035 / (2 * Math.PI * (r - .05) / S);
+  const style = p.roofStyle || 'flat', color = p.roofColor || roofCol();
+  const surf = roundRoofMesh(M, g, h, style, color, p.rot, p.flip, col);
+  if (p.roofDamaged) roofDamageMesh(M, roundHoles(g, style, g.cx * 7.13 + g.cy * 3.71 + f * 1.37), surf, color, col);
+  if (!p.rail || PITCHED.has(style)) return;
+  // On a parapet roof the railing stands on the parapet wall.
+  const rc = col(C.rail), H = .3, post = .035 / (2 * Math.PI * (r - .05) / S), rb = h + (style === 'parapet' ? PARAPET.h : 0);
   for (let i = 0; i < S; i++) {
     const m = pt(i + .5, h, -.05);
     if (any.has(`${Math.floor(m[0])},${Math.floor(m[2])},${f + 1}`)) continue;
-    quad(M.tri, pt(i, h + H - .05, -.05), pt(i + 1, h + H - .05, -.05), pt(i + 1, h + H, -.05), pt(i, h + H, -.05), rc);
-    quad(M.tri, pt(i + .5 - post / 2, h, -.05), pt(i + .5 + post / 2, h, -.05), pt(i + .5 + post / 2, h + H, -.05), pt(i + .5 - post / 2, h + H, -.05), rc);
+    quad(M.tri, pt(i, rb + H - .05, -.05), pt(i + 1, rb + H - .05, -.05), pt(i + 1, rb + H, -.05), pt(i, rb + H, -.05), rc);
+    quad(M.tri, pt(i + .5 - post / 2, rb, -.05), pt(i + .5 + post / 2, rb, -.05), pt(i + .5 + post / 2, rb + H, -.05), pt(i + .5 - post / 2, rb + H, -.05), rc);
   }
 }
 
@@ -1733,10 +1945,12 @@ function groundMesh() {
 }
 
 // Roof panel: a free footprint of roof-only cells at the height of the floor they sit on, independent
-// of whatever (if anything) is underneath.
+// of whatever (if anything) is underneath. It's a thin slab, so it reads as a separate sheet.
 function roofPanelMesh(M, p, col) {
-  const color = p.roofColor || roofCol(), style = p.roofStyle || 'flat', h = p.floor + 1;
-  for (const [x, y] of pieceCells(p)) roofCubeMesh(M, x, y, h, style, color, p.roofDamaged, p.rot, p.flip, col);
+  const color = p.roofColor || roofCol(), h = p.floor + 1, lift = .05, cells = pieceCells(p);
+  const fr = roofFrame(cells, p.roofStyle || 'flat', p.rot, p.flip);
+  for (const [x, y] of cells) roofCellMesh(M, fr, x, y, h, color, col, shade(color, .7), lift);
+  if (p.roofDamaged) roofDamageMesh(M, roofHoles(fr, cells, roofSeed(fr, p)), (x, y) => h + lift + fr.f(fr.ab(x, y)[0]), color, col);
 }
 
 function buildScene(fadeAbove) {
@@ -1757,6 +1971,12 @@ function buildScene(fadeAbove) {
   // Cells covered by a roof panel suppress the auto-roof on the floor just below them.
   const roofPanelCovers = new Set();
   for (const p of state.pieces) if (isRoofPanel(p)) for (const [x, y] of pieceCells(p)) roofPanelCovers.add(`${x},${y},${p.floor}`);
+  // One roof frame per building piece, so its roof is a single surface across all of its cubes.
+  const frames = new Map(), roofed = new Set();
+  const frameOf = p => {
+    if (!frames.has(p)) frames.set(p, roofFrame(pieceCells(p), p.roofStyle || 'flat', p.rot, p.flip));
+    return frames.get(p);
+  };
 
   for (const [k, p] of at) {
     const [x, y, f] = k.split(',').map(Number);
@@ -1786,15 +2006,28 @@ function buildScene(fadeAbove) {
       quad(M.tri, [x, f, y], [x + 1, f, y], [x + 1, f, y + 1], [x, f, y + 1], col(C.wallB));
 
     if (!get(x, y, f + 1) && !roofPanelCovers.has(`${x},${y},${f}`)) {
-      const h = f + 1;
-      roofCubeMesh(M, x, y, h, p.roofStyle || 'flat', p.roofColor || roofCol(), p.roofDamaged, p.rot, p.flip, col);
+      const h = f + 1, fr = frameOf(p);
+      roofCellMesh(M, fr, x, y, h, p.roofColor || roofCol(), col, C.wallA);
+      roofed.add(k);
+      // On a parapet roof the railing stands on the parapet wall; a pitched roof gets none.
+      const rb = h + (fr.style === 'parapet' ? PARAPET.h : 0);
       for (const s of SIDES) {
         if (get(x + s.dx, y + s.dy, f) === p) continue;
         const ax = x + s.a[0], ay = y + s.a[1], bx = x + s.b[0], by = y + s.b[1];
         seg(M.line, [ax, h + .003, ay], [bx, h + .003, by], edge);
-        if (p.rail && !any.has(`${x},${y},${h}`)) railing(M.tri, ax, ay, bx, by, -s.dx, -s.dy, h, col(C.rail));
+        if (p.rail && !fr.rise && !any.has(`${x},${y},${h}`)) railing(M.tri, ax, ay, bx, by, -s.dx, -s.dy, rb, col(C.rail));
       }
     }
+  }
+
+  // Damage is laid out per piece (same holes as the 2D board), skipping any that fall on a cell that
+  // has something built on top of it.
+  for (const [p, fr] of frames) {
+    if (!p.roofDamaged) continue;
+    const {M, A} = layer(p.floor), h = p.floor + 1;
+    const holes = roofHoles(fr, pieceCells(p), roofSeed(fr, p))
+      .filter(o => roofed.has(`${Math.floor(o.x)},${Math.floor(o.y)},${p.floor}`));
+    roofDamageMesh(M, holes, (x, y) => h + fr.f(fr.ab(x, y)[0]), p.roofColor || roofCol(), hex => rgba(hex, A));
   }
 
   for (const p of state.pieces) {
